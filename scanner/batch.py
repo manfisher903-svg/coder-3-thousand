@@ -25,8 +25,16 @@ def _friendly_error(raw: str, email: str) -> str:
         return (f"Login was rejected. For {email} you almost certainly need an "
                 f"APP PASSWORD (not your normal password), and IMAP must be "
                 f"turned on in your email settings. Raw error: {raw}")
-    if any(k in low for k in ("timed out", "timeout", "refused", "resolve",
-                              "name or service", "unreachable", "connection")):
+    if any(k in low for k in ("11001", "getaddrinfo", "gaierror",
+                              "no such host", "name or service not known",
+                              "nodename nor servname", "resolve")):
+        return (f"Your computer couldn't find the mail server (a DNS lookup "
+                f"failed — Windows calls this error 11001). Usually it's one of: "
+                f"(1) you're not connected to the internet, (2) the email address "
+                f"'{email}' is misspelled (check the part after the @), or (3) a "
+                f"VPN/firewall is blocking it. Raw error: {raw}")
+    if any(k in low for k in ("timed out", "timeout", "refused", "unreachable",
+                              "connection")):
         return (f"Couldn't reach the mail server. Check your internet, or set "
                 f"the IMAP host manually if this is an unusual provider. "
                 f"Raw error: {raw}")
