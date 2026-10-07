@@ -210,6 +210,30 @@ def test_identity_detectors_and_grouping():
                for f in d["sensitive_findings"])
 
 
+def test_phishing_analyzer():
+    from scanner.phishing import analyze_email
+    v = analyze_email("security@paypa1-alerts.com", "PayPal Security",
+                      "Your account is suspended",
+                      "Verify your account, click here to login and enter your "
+                      "password http://185.23.1.9/login",
+                      reply_to="x@random.ru", auth_results="spf=fail")
+    assert v.label == "likely phishing" and v.reasons
+    ok = analyze_email("ship@amazon.com", "Amazon.com", "Your order shipped",
+                       "Track at https://amazon.com/track", auth_results="spf=pass")
+    assert ok.label == "legit"
+
+
+def test_best_guess_picks_most_frequent():
+    from scanner.report import Inventory
+    inv = Inventory(detail="full", account="me@x.com")
+    inv.name_counts = {"Jane Q Public": 4, "Jane": 1}
+    inv.add_findings(scan_sensitive("123 Oak Avenue"), "a")
+    inv.add_findings(scan_sensitive("123 Oak Avenue"), "b")
+    d = inv.to_dict()
+    assert d["best_guess"]["name"]["value"] == "Jane Q Public"
+    assert d["best_guess"]["address"]["count"] == 2
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

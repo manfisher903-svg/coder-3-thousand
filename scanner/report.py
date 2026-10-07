@@ -47,6 +47,8 @@ class Inventory:
         self.sensitive: List[SensitiveHit] = []
         self.attachments: List[str] = []
         self.sources_scanned: int = 0
+        self.suspicious: List[dict] = []          # flagged phishing/scam emails
+        self.name_counts: Dict[str, int] = {}     # candidate owner names
 
     def add_service(self, brand: Optional[str], category: str, domain: str, subject: str):
         key = (brand or domain or category).lower()
@@ -111,6 +113,25 @@ class Inventory:
         }
         personal_info_count = sum(len(v) for v in personal_info.values())
 
+        # Best-guess "real" details: the most-repeated value wins.
+        def top(kind):
+            items = personal_info.get(kind) or []
+            return items[0] if items else None
+        best_name = None
+        if self.name_counts:
+            n, c = max(self.name_counts.items(), key=lambda kv: kv[1])
+            best_name = {"value": n, "count": c}
+        best_guess = {
+            "name": best_name,
+            "email": top("email_address"),
+            "phone": top("phone"),
+            "address": top("mailing_address"),
+            "dob": top("date_of_birth"),
+        }
+
+        suspicious = sorted(self.suspicious,
+                            key=lambda s: -s.get("score", 0))
+
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "account": self.account,
@@ -123,6 +144,9 @@ class Inventory:
             "sensitive_count": len(sensitive),
             "personal_info": personal_info,
             "personal_info_count": personal_info_count,
+            "best_guess": best_guess,
+            "suspicious_emails": suspicious,
+            "suspicious_count": len(suspicious),
             "attachments_saved": self.attachments,
         }
 

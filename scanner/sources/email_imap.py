@@ -36,6 +36,9 @@ class MessageRecord:
     subject: str
     body_text: str
     attachments: List[Attachment] = field(default_factory=list)
+    reply_to: str = ""
+    auth_results: str = ""
+    to_names: List[str] = field(default_factory=list)  # display names on To/Cc
 
     @property
     def attachment_names(self) -> List[str]:
@@ -137,6 +140,37 @@ class EmailSource:
             return conn
         return imaplib.IMAP4_SSL(self.cfg.host, self.cfg.port, timeout=timeout)
 
+    def _record(self, msg, uid: str) -> MessageRecord:
+        from email.utils import getaddresses
+
+        name, addr = parseaddr(msg.get("From", ""))
+        domain = addr.split("@")[-1].lower() if "@" in addr else ""
+        body, attachments = _extract_body(msg)
+
+        date = None
+        try:
+            date = parsedate_to_datetime(msg.get("Date"))
+        except Exception:
+            pass
+
+        _rn, reply_to = parseaddr(msg.get("Reply-To", ""))
+        auth = " ".join(msg.get_all("Authentication-Results") or [])
+
+        # Display names addressed to the account owner (from To/Cc).
+        to_names: List[str] = []
+        me = (self.cfg.username or "").lower()
+        for disp, a in getaddresses(msg.get_all("To", []) + msg.get_all("Cc", [])):
+            if a and a.lower() == me and disp:
+                to_names.append(_decode(disp))
+
+        return MessageRecord(
+            uid=uid, date=date, sender_name=_decode(name),
+            sender_email=addr.lower(), sender_domain=domain,
+            subject=_decode(msg.get("Subject")), body_text=body,
+            attachments=attachments, reply_to=reply_to.lower(),
+            auth_results=auth, to_names=to_names,
+        )
+
     def _search_criteria(self) -> str:
         if self.cfg.since_days and self.cfg.since_days > 0:
             since = datetime.now(timezone.utc) - timedelta(days=self.cfg.since_days)
@@ -213,20 +247,7 @@ class EmailSource:
                 except Exception:
                     continue
                 msg = email.message_from_bytes(b"\r\n".join(lines))
-                name, addr = parseaddr(msg.get("From", ""))
-                domain = addr.split("@")[-1].lower() if "@" in addr else ""
-                body, attachments = _extract_body(msg)
-                date = None
-                try:
-                    date = parsedate_to_datetime(msg.get("Date"))
-                except Exception:
-                    pass
-                yield MessageRecord(
-                    uid=f"pop:{i}", date=date, sender_name=_decode(name),
-                    sender_email=addr.lower(), sender_domain=domain,
-                    subject=_decode(msg.get("Subject")), body_text=body,
-                    attachments=attachments,
-                )
+                yield self._record(msg, f"pop:{i}")
         finally:
             try:
                 m.quit()
@@ -276,28 +297,9 @@ class EmailSource:
                         continue
                     raw = msg_data[0][1]
                     msg = email.message_from_bytes(raw)
-
-                    name, addr = parseaddr(msg.get("From", ""))
-                    domain = addr.split("@")[-1].lower() if "@" in addr else ""
-                    body, attachments = _extract_body(msg)
-
-                    date = None
-                    try:
-                        date = parsedate_to_datetime(msg.get("Date"))
-                    except Exception:
-                        pass
-
                     emitted += 1
-                    yield MessageRecord(
-                        uid=f"{mbox}:{msg_id.decode() if isinstance(msg_id, bytes) else msg_id}",
-                        date=date,
-                        sender_name=_decode(name),
-                        sender_email=addr.lower(),
-                        sender_domain=domain,
-                        subject=_decode(msg.get("Subject")),
-                        body_text=body,
-                        attachments=attachments,
-                    )
+                    uid = f"{mbox}:{msg_id.decode() if isinstance(msg_id, bytes) else msg_id}"
+                    yield self._record(msg, uid)
         finally:
             try:
                 conn.close()

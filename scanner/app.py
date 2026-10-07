@@ -132,8 +132,8 @@ padding-top:10px}}
 <header>
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
-<a href="/search">▸ search</a><a href="/export">▸ export</a>
-<a href="/recover">▸ recover</a>
+<a href="/search">▸ search</a><a href="/analyze">▸ analyze</a>
+<a href="/export">▸ export</a><a href="/recover">▸ recover</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -474,6 +474,35 @@ def profile(folder):
         pi_html = ("<p class='muted'>No name/phone/address/DOB detected in this "
                    "inbox.</p>")
 
+    # Best-guess "real" details (most-repeated value per field).
+    bg = d.get("best_guess", {})
+    def bg_row(lbl, item):
+        if not item:
+            return ""
+        times = (f" <span class='muted'>(seen {item['count']}×)</span>"
+                 if item.get("count", 0) > 1 else "")
+        return (f"<tr><td>{escape(lbl)}</td>"
+                f"<td><code>{escape(str(item['value']))}</code>{times}</td></tr>")
+    bg_rows = (bg_row("Name", bg.get("name")) + bg_row("Email", bg.get("email"))
+               + bg_row("Phone", bg.get("phone")) + bg_row("Home address", bg.get("address"))
+               + bg_row("Date of birth", bg.get("dob")))
+    bg_html = (f'<table><tr><th>Field</th><th>Most likely value</th></tr>{bg_rows}</table>'
+               if bg_rows else "<p class='muted'>Not enough data to guess yet.</p>")
+
+    # Email legitimacy (phishing/scam) section.
+    susp = d.get("suspicious_emails", [])
+    susp_html = ""
+    for s in susp[:200]:
+        color = "var(--red)" if s["verdict"] == "likely phishing" else "var(--amber)"
+        reasons = "".join(f"<li>{escape(r)}</li>" for r in s.get("reasons", []))
+        susp_html += (f'<div class="card" style="border-color:{color}">'
+                      f'<b style="color:{color}">{escape(s["verdict"].upper())}</b> '
+                      f'— from <code>{escape(s["from"])}</code>'
+                      f'<div class="muted">{escape(s["subject"])}</div>'
+                      f'<ul>{reasons}</ul></div>')
+    if not susp_html:
+        susp_html = "<p class='muted'>No suspicious or phishing emails detected.</p>"
+
     # Attachments / pictures
     att_html = ""
     for rel in d.get("attachments_saved", []):
@@ -518,6 +547,16 @@ def profile(folder):
     {scanned_n} messages scanned ·
     <a href="{url_for('serve_file', folder=folder, path='report.md')}">raw report.md</a></p>
     {banner}
+
+    <h2>Best guess — your real details</h2>
+    <p class="muted">The value seen most consistently across this inbox wins, so
+    you see the likely-real one first instead of a pile of candidates.</p>
+    {bg_html}
+
+    <h2>Email legitimacy <span class="badge">{d.get('suspicious_count',0)}</span></h2>
+    <p class="muted">Emails that look like phishing or spoofing, with the reasons.
+    <a href="/analyze">Analyze a specific email →</a></p>
+    {susp_html}
 
     <h2>Personal info found <span class="badge">{d.get('personal_info_count',0)}</span></h2>
     <p class="muted">Contact &amp; identity details that appear in this inbox.
@@ -752,6 +791,67 @@ def update_app():
       <p><a href="/">← back to accounts</a></p>
     </div>"""
     return render("Update", body)
+
+
+@app.route("/analyze", methods=["GET", "POST"])
+def analyze():
+    from email import message_from_string
+    from email.utils import parseaddr
+    from .phishing import analyze_email
+
+    pasted = ""
+    result_html = ""
+    if request.method == "POST":
+        pasted = request.form.get("email", "")
+        from_addr = from_name = subject = reply_to = auth = ""
+        body = pasted
+        # If it looks like a full email (has headers), parse them.
+        if "\n" in pasted and (":" in pasted.split("\n", 1)[0]):
+            try:
+                msg = message_from_string(pasted)
+                from_name, from_addr = parseaddr(msg.get("From", ""))
+                _n, reply_to = parseaddr(msg.get("Reply-To", ""))
+                auth = " ".join(msg.get_all("Authentication-Results") or [])
+                subject = msg.get("Subject", "") or ""
+                if msg.is_multipart():
+                    parts = [p.get_payload(decode=True) or b"" for p in msg.walk()
+                             if p.get_content_type() in ("text/plain", "text/html")]
+                    body = b"\n".join(parts).decode("utf-8", "replace")
+                else:
+                    body = (msg.get_payload(decode=True) or b"").decode("utf-8", "replace") or pasted
+            except Exception:
+                pass
+        # Also accept a simple "From: x@y.com" line even without full headers.
+        if not from_addr:
+            m = re.search(r"from[:\s]+([^\s<>]+@[^\s<>]+)", pasted, re.IGNORECASE)
+            if m:
+                from_addr = m.group(1)
+
+        v = analyze_email(from_addr, from_name, subject, body,
+                          reply_to=reply_to, auth_results=auth)
+        color = {"likely phishing": "var(--red)", "suspicious": "var(--amber)",
+                 "legit": "var(--grn)"}.get(v.label, "var(--grn)")
+        reasons = "".join(f"<li>{escape(r)}</li>" for r in v.reasons)
+        result_html = (f'<div class="card" style="border-color:{color}">'
+                       f'<h2 style="color:{color};margin-top:0">{escape(v.label.upper())}</h2>'
+                       f'<p class="muted">Sender: <code>{escape(from_addr or "unknown")}</code>'
+                       f'{" · subject: " + escape(subject) if subject else ""}</p>'
+                       f'<ul>{reasons}</ul></div>')
+
+    body_html = f"""
+    <h1>Analyze an email</h1>
+    <p class="muted">Paste a whole email (best: use "Show original" / "View
+    source" in your mail app to include the headers), or just the From address
+    and text. It checks for phishing/spoofing signals — all offline.</p>
+    <form method="post" action="/analyze">
+      <textarea name="email" rows="12" style="width:100%;background:#02110b;
+        color:var(--grn);border:1px solid var(--grn2);border-radius:8px;
+        padding:10px;font-family:inherit">{escape(pasted)}</textarea>
+      <p><button>Analyze</button></p>
+    </form>
+    {result_html}
+    """
+    return render("Analyze", body_html)
 
 
 @app.route("/export")

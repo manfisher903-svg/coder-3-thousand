@@ -57,6 +57,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
     """Scan a single account into out_dir; return a summary dict."""
     from .classify import classify
     from .patterns import scan_sensitive
+    from .phishing import analyze_email
     from .sources.email_imap import EmailSource
     import re
 
@@ -83,6 +84,24 @@ def scan_one(account: Account, base: Config, out_dir: str,
             findings = scan_sensitive(f"{rec.subject}\n{rec.body_text}")
             if findings:
                 inv.add_findings(findings, f"{rec.sender_email} — {rec.subject[:60]!r}")
+
+            # Owner-name candidates (how others address this account).
+            for nm in rec.to_names:
+                nm = nm.strip()
+                if nm and "@" not in nm:
+                    inv.name_counts[nm] = inv.name_counts.get(nm, 0) + 1
+
+            # Phishing / legitimacy check.
+            v = analyze_email(rec.sender_email, rec.sender_name, rec.subject,
+                              rec.body_text, reply_to=rec.reply_to,
+                              auth_results=rec.auth_results,
+                              attachment_names=rec.attachment_names)
+            if v.label != "legit":
+                inv.suspicious.append({
+                    "from": rec.sender_email, "name": rec.sender_name,
+                    "subject": rec.subject[:120], "verdict": v.label,
+                    "score": v.score, "reasons": v.reasons,
+                })
 
             if base.output.save_attachments and rec.attachments and (
                     findings or category != "other"):
