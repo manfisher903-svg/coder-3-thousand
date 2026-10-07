@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scanner.classify import brand_from_domain, classify  # noqa: E402
 from scanner.patterns import scan_sensitive  # noqa: E402
+from scanner.providers import resolve_imap  # noqa: E402
 from scanner.redact import render_value  # noqa: E402
 from scanner.report import Inventory  # noqa: E402
 
@@ -69,6 +70,23 @@ def test_classify_categories():
 
     cat, _ = classify("news.coinbase.com", "Your wallet activity", "bitcoin deposit")
     assert cat == "crypto"
+
+
+def test_provider_detection_builtin():
+    # Built-in registry resolves offline (allow_network=False).
+    assert resolve_imap("someone@gmail.com", allow_network=False).host == "imap.gmail.com"
+    assert resolve_imap("a@yahoo.com", allow_network=False).host == "imap.mail.yahoo.com"
+    assert resolve_imap("b@hotmail.com", allow_network=False).host == "outlook.office365.com"
+    icloud = resolve_imap("c@icloud.com", allow_network=False)
+    assert icloud.host == "imap.mail.me.com" and icloud.security == "ssl"
+
+
+def test_provider_detection_unknown_offline_raises():
+    try:
+        resolve_imap("x@nonexistent-weird-domain.example", allow_network=False)
+        assert False, "should raise for unknown domain with no network"
+    except LookupError:
+        pass
 
 
 def test_inventory_roundtrip():

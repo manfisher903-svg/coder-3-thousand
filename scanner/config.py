@@ -12,8 +12,9 @@ import yaml
 @dataclass
 class EmailConfig:
     enabled: bool = True
-    host: str = ""
-    port: int = 993
+    host: str = ""          # leave blank to auto-detect from the address
+    port: int = 0           # 0 = auto (993 for SSL, 143 for STARTTLS)
+    security: str = "ssl"   # ssl | starttls
     username: str = ""
     password: str = ""
     mailbox: str = "INBOX"
@@ -71,8 +72,7 @@ class Config:
         if not self.email.enabled and not self.files.enabled:
             problems.append("Nothing to scan: enable email and/or files in the config.")
         if self.email.enabled:
-            if not self.email.host:
-                problems.append("email.host is required when email scanning is enabled.")
+            # host may be blank — it is auto-detected from the address at scan time.
             if not self.email.username:
                 problems.append("email.username is required.")
             if not self.email.password:

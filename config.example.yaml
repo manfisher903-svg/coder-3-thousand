@@ -3,8 +3,11 @@
 
 email:
   enabled: true
-  host: imap.gmail.com          # your provider's IMAP host
-  port: 993
+  # host/port/security are AUTO-DETECTED from your address — leave them blank.
+  # Only fill host in if auto-detection fails for an unusual provider.
+  host: ""
+  port: 0                       # 0 = auto
+  security: "ssl"               # ssl | starttls (auto-detected too)
   username: you@example.com
   # Prefer the PIS_EMAIL_PASSWORD env var over putting the password here.
   # For Gmail and most providers this must be an APP PASSWORD, not your login.

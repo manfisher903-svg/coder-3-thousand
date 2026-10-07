@@ -16,6 +16,7 @@ from email.utils import parseaddr, parsedate_to_datetime
 from typing import Iterator, List, Optional, Tuple
 
 from ..config import EmailConfig
+from ..providers import resolve_imap
 
 
 @dataclass
@@ -91,6 +92,26 @@ def _strip_html(html: str) -> str:
 class EmailSource:
     def __init__(self, cfg: EmailConfig):
         self.cfg = cfg
+        self._resolve_server()
+
+    def _resolve_server(self) -> None:
+        """Fill in host/port/security from the address when not set explicitly."""
+        if self.cfg.host:
+            if not self.cfg.port:
+                self.cfg.port = 143 if self.cfg.security == "starttls" else 993
+            return
+        server = resolve_imap(self.cfg.username)
+        self.cfg.host = server.host
+        self.cfg.port = server.port
+        self.cfg.security = server.security
+        self.detected = server  # for the CLI to report what it found
+
+    def _connect(self) -> imaplib.IMAP4:
+        if self.cfg.security == "starttls":
+            conn = imaplib.IMAP4(self.cfg.host, self.cfg.port)
+            conn.starttls()
+            return conn
+        return imaplib.IMAP4_SSL(self.cfg.host, self.cfg.port)
 
     def _search_criteria(self) -> str:
         if self.cfg.since_days and self.cfg.since_days > 0:
@@ -99,7 +120,7 @@ class EmailSource:
         return "ALL"
 
     def iter_messages(self) -> Iterator[MessageRecord]:
-        conn = imaplib.IMAP4_SSL(self.cfg.host, self.cfg.port)
+        conn = self._connect()
         try:
             conn.login(self.cfg.username, self.cfg.password)
             # readonly=True guarantees we never modify the mailbox.

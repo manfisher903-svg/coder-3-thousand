@@ -18,6 +18,30 @@ def _print_banner() -> None:
           file=sys.stderr)
 
 
+def cmd_providers(args) -> int:
+    from .providers import known_providers, resolve_imap
+
+    if args.email:
+        try:
+            s = resolve_imap(args.email)
+            print(f"{args.email}  ->  {s.host}:{s.port} ({s.security}) [{s.source}]")
+            return 0
+        except Exception as exc:  # noqa: BLE001
+            print(f"Could not resolve '{args.email}': {exc}", file=sys.stderr)
+            return 1
+
+    print("Built-in providers (any other domain is auto-detected online):\n")
+    seen = {}
+    for domain, s in sorted(known_providers().items()):
+        seen.setdefault((s.host, s.port, s.security), []).append(domain)
+    for (host, port, sec), domains in sorted(seen.items()):
+        print(f"  {host}:{port} ({sec})")
+        print(f"      {', '.join(sorted(domains))}")
+    print("\nFor any address not listed, settings are detected automatically "
+          "from the address when you scan (pass --email ADDR here to preview).")
+    return 0
+
+
 def cmd_detectors(_args) -> int:
     from .classify import CATEGORY_KEYWORDS
     print("Service categories:")
@@ -35,6 +59,10 @@ def _scan_email(cfg: Config, inv: Inventory, save_attachments: bool, out_dir: st
     from .sources.email_imap import EmailSource
 
     src = EmailSource(cfg.email)
+    detected = getattr(src, "detected", None)
+    if detected is not None:
+        print(f"  using {detected.host}:{detected.port} ({detected.security}, "
+              f"via {detected.source})", file=sys.stderr)
     count = 0
     for rec in src.iter_messages():
         count += 1
@@ -146,6 +174,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     det = sub.add_parser("detectors", help="List categories and detectors.")
     det.set_defaults(func=cmd_detectors)
+
+    prov = sub.add_parser("providers",
+                          help="List built-in providers or preview detection for an address.")
+    prov.add_argument("--email", help="Preview the IMAP settings detected for this address")
+    prov.set_defaults(func=cmd_providers)
 
     return p
 

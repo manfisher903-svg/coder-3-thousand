@@ -45,24 +45,33 @@ cp config.example.yaml config.yaml
 $EDITOR config.yaml
 ```
 
-For Gmail/most providers you must create an **app password** (not your normal
-password) and, for Gmail, enable IMAP. Put it in the config, or better, in the
-`PIS_EMAIL_PASSWORD` environment variable so it never touches disk.
+### Works with any email provider
 
-### Yahoo Mail
+You only need two things: your **email address** and an **app password**. The
+tool figures out the IMAP server for you — Gmail, Yahoo, Outlook/Hotmail,
+iCloud, AOL, Proton (via Bridge), GMX, Zoho, Fastmail, Yandex, Comcast, AT&T,
+and basically any other provider or custom domain. Detection happens in this
+order:
 
-There's a ready-made Yahoo config — copy it and change only two lines:
+1. A built-in list of common providers (instant, offline).
+2. Mozilla's autoconfig database (covers thousands of providers / business
+   domains).
+3. Smart guesses (`imap.<domain>`, `mail.<domain>`) verified by connecting.
+
+So in `config.yaml` you normally leave `host` blank and just set `username`.
+Preview what it will use for your address without scanning:
 
 ```bash
-cp config.yahoo.example.yaml config.yaml
+python -m scanner.cli providers --email you@somewhere.com
+python -m scanner.cli providers              # list the built-in ones
 ```
 
-- Host is already set to `imap.mail.yahoo.com`, port `993`.
-- Yahoo needs an **app password**: log in at yahoo.com → **Account Info** →
-  **Account Security** → **Generate app password**, name it "scanner", and copy
-  the 16-character code.
-- In `config.yaml` set `username:` to your `you@yahoo.com` address and
-  `password:` to that 16-character code.
+**App passwords:** most providers (Gmail, Yahoo, Outlook, iCloud, AOL…) require
+an *app password* rather than your normal login, and Gmail also needs IMAP
+turned on. Create one in your provider's account-security settings, then put it
+in `config.yaml` as `password:` — or better, in the `PIS_EMAIL_PASSWORD`
+environment variable so it never touches disk. (Proton requires the Proton
+Bridge app running locally.)
 
 Then run:
 
