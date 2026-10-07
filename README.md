@@ -31,6 +31,24 @@ This tool is deliberately conservative about secrets:
    with `encrypt_passphrase`, and should be deleted when you're done. If a seed
    phrase shows up in your email, consider moving it offline afterward.
 
+## Using it on your phone
+
+SpeedRunner runs on your computer, but you can **view and use it from your
+phone's browser** over your home Wi-Fi:
+
+1. On your computer, start it in phone mode — double-click **`run_app_phone.bat`**
+   (Windows) / **`run_app_phone.sh`** (Mac/Linux), or run
+   `PIS_LAN=1 python -m scanner.app`.
+2. The black window prints a line like **`on your PHONE: http://192.168.1.23:5000`**.
+3. On your phone (connected to the **same Wi-Fi**), open that address in any
+   browser. That's it — same app, same features.
+
+Notes: your computer has to stay on and running the app. Phone mode lets any
+device on your Wi-Fi open the page, so use it on a trusted home network and
+close it (Ctrl+C) when done. (Running Python *directly* on a phone is possible
+via Termux/Pydroid on Android or a-Shell on iOS, but the computer-plus-phone-
+browser route above is far simpler.)
+
 ## SpeedRunner — the app (easiest way to use it)
 
 Instead of typing commands, you can open it like an app in your browser:

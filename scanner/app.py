@@ -997,8 +997,20 @@ def export_download():
                      download_name="speedrunner_export.zip")
 
 
+def _lan_ip():
+    """Best-effort local network IP of this machine (for phone access)."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))   # no packets sent; just picks the route
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return None
+
+
 def main():
-    url = "http://127.0.0.1:5000"
     print(r"""
    ___                   _ ___
   / __|_ __  ___ ___ __| | _ \_  _ _ _  _ _  ___ _ _
@@ -1006,13 +1018,29 @@ def main():
   |___/ .__/\___\___\__,_|_|_\\_,_|_||_|_||_\___|_|
       |_|   SPEEDRUNNER  //  local personal-data recon
 """)
-    print(f"  [+] console online at {url}")
-    print("  [+] 100% local — nothing leaves this machine. Ctrl+C to stop.")
+    # Phone/LAN mode: set PIS_LAN=1 to let other devices on your Wi-Fi (your
+    # phone) reach the app at http://<this-computer-ip>:5000.
+    lan = os.environ.get("PIS_LAN", "").strip() in ("1", "true", "yes", "lan")
+    host = "0.0.0.0" if lan else "127.0.0.1"
+    local_url = "http://127.0.0.1:5000"
+
+    if lan:
+        ip = _lan_ip() or "<this-computer-ip>"
+        print(f"  [+] on this computer: {local_url}")
+        print(f"  [+] on your PHONE (same Wi-Fi): http://{ip}:5000")
+        print("  [!] LAN mode: anyone on your Wi-Fi who opens that link can use")
+        print("      the app. Use it on a trusted home network only, and close")
+        print("      it (Ctrl+C) when you're done.")
+    else:
+        print(f"  [+] console online at {local_url}")
+        print("  [+] 100% local. To open it on your phone, set PIS_LAN=1.")
+    print("  [+] Ctrl+C to stop.")
+
     try:
-        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+        threading.Timer(1.0, lambda: webbrowser.open(local_url)).start()
     except Exception:
         pass
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host=host, port=5000, debug=False)
 
 
 if __name__ == "__main__":
