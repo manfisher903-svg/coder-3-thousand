@@ -120,6 +120,23 @@ def test_accounts_loader_plain_and_dedup():
     assert accts[1].password == "pw2" and accts[1].mailbox == "INBOX"
 
 
+def test_accounts_loader_email_space_password():
+    # The user's preferred format: "email password" (space separated).
+    import tempfile
+    from scanner.accounts import load_accounts
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "a.txt")
+    with open(p, "w") as fh:
+        fh.write("frank439@gmail.com 979password\n"
+                 "jane@yahoo.com my pass with spaces\n")
+    accts = load_accounts(p)
+    assert accts[0].email == "frank439@gmail.com"
+    assert accts[0].password == "979password"
+    # Everything after the first space is the password, spaces preserved.
+    assert accts[1].email == "jane@yahoo.com"
+    assert accts[1].password == "my pass with spaces"
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

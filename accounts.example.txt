@@ -1,0 +1,18 @@
+# Your own email accounts — one per line, in the format:
+#
+#     email<space>password
+#
+# Everything after the first space is treated as the password.
+# Lines starting with # are comments and are ignored.
+#
+# Copy this to accounts.txt and put your real accounts below.
+# accounts.txt is git-ignored so it won't be committed.
+#
+# Examples (replace with your real accounts):
+
+frank439@gmail.com 979password
+you@yahoo.com yourAppPasswordHere
+you@netzero.net yourPasswordHere
+
+# Then run:
+#   python -m scanner.cli scan-all --accounts accounts.txt --output ./inventory

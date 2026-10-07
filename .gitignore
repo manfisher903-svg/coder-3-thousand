@@ -5,6 +5,7 @@ accounts.txt
 *accounts*.yaml
 *accounts*.txt
 !accounts.example.yaml
+!accounts.example.txt
 inventory/
 *.pis
 report.json

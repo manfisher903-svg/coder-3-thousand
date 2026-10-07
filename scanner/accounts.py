@@ -15,12 +15,15 @@ Three formats are accepted, pick whichever is easiest:
          mailbox: "INBOX"     # optional
          host: ""             # optional manual IMAP host override
 
-2. CSV / plain lines (one account per line), any of these separators:
+2. Plain lines — the simplest form: the email, a space, then the password.
+   Everything after the first space is the password:
+     frank439@gmail.com 979password
+     you@yahoo.com my app password with spaces
+
+   You may instead use commas or pipes, which also allow an optional third
+   mailbox field:
      you@gmail.com,app-password
-     you@yahoo.com | app-password
-     you@outlook.com   app-password
-   An optional third field is a mailbox name:
-     you@gmail.com,app-password,[Gmail]/All Mail
+     you@outlook.com | app-password | INBOX
 
 Lines starting with # are comments.
 """
@@ -75,12 +78,22 @@ def load_accounts(path: str) -> List[Account]:
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = re.split(r"\s*[,|]\s*|\s{2,}|\t+", line, maxsplit=2)
-            if len(parts) == 1:  # fall back to "email password" single-space
-                parts = line.split(None, 1)
-            email = parts[0].strip()
-            password = parts[1].strip() if len(parts) > 1 else ""
-            mailbox = parts[2].strip() if len(parts) > 2 else None
+
+            if "," in line or "|" in line:
+                # Optional richer form: email,password[,mailbox]
+                parts = re.split(r"\s*[,|]\s*", line, maxsplit=2)
+                email = parts[0].strip()
+                password = parts[1].strip() if len(parts) > 1 else ""
+                mailbox = parts[2].strip() if len(parts) > 2 else None
+            else:
+                # Primary form: "email password" — the first whitespace splits
+                # the email from the password; everything after it is the
+                # password (kept verbatim, even if it contains spaces).
+                bits = line.split(None, 1)
+                email = bits[0].strip()
+                password = bits[1] if len(bits) > 1 else ""
+                mailbox = None
+
             if email:
                 accounts.append(Account(email=email, password=password, mailbox=mailbox))
 
