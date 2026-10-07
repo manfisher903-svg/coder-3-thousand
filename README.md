@@ -29,7 +29,7 @@ This tool is deliberately conservative about secrets:
    with `encrypt_passphrase`, and should be deleted when you're done. If a seed
    phrase shows up in your email, consider moving it offline afterward.
 
-## The app (easiest way to use it)
+## SpeedRunner — the app (easiest way to use it)
 
 Instead of typing commands, you can open it like an app in your browser:
 

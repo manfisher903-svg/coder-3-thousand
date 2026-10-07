@@ -39,31 +39,96 @@ _scan_lock = threading.Lock()
 
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title><style>
-:root{{color-scheme:light dark}}
-body{{font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:860px;margin:0 auto;
-padding:16px;line-height:1.5}}
-a{{color:#2563eb}} header{{display:flex;gap:16px;align-items:center;flex-wrap:wrap;
-border-bottom:1px solid #8884;padding-bottom:10px;margin-bottom:16px}}
-header a{{text-decoration:none;font-weight:600}}
-h1{{font-size:1.4rem;margin:.2em 0}} h2{{font-size:1.1rem;margin-top:1.4em}}
-table{{border-collapse:collapse;width:100%;margin:8px 0}}
-th,td{{border:1px solid #8884;padding:6px 8px;text-align:left;font-size:.92rem;
-vertical-align:top}} th{{background:#8881}}
-.card{{border:1px solid #8884;border-radius:10px;padding:14px;margin:10px 0}}
-input,select{{padding:8px;border:1px solid #8886;border-radius:8px;font-size:1rem;
-background:transparent;color:inherit}}
-button{{padding:9px 16px;border:0;border-radius:8px;background:#2563eb;color:#fff;
-font-size:1rem;cursor:pointer}} button.secondary{{background:#6b7280}}
-.badge{{display:inline-block;padding:1px 8px;border-radius:999px;background:#8882;
-font-size:.8rem}} .muted{{color:#6b7280}} .warn{{color:#b45309}}
-img.att{{max-width:220px;max-height:220px;border:1px solid #8884;border-radius:8px;
-margin:4px}} code{{word-break:break-all}}
-</style></head><body><header>
-<a href="/">🏠 Accounts</a><a href="/search">🔎 Search</a>
-<a href="/recover">🔑 Recover access</a>
-<span class="muted">Personal Info Scanner — all local</span>
-</header>{body}</body></html>"""
+<title>{title} :: SpeedRunner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{{--bg:#05080a;--panel:#0b1210;--grn:#27ff99;--grn2:#13c074;--dim:#5c7d70;
+--amber:#ffb347;--red:#ff4d5e;--line:#123;--glow:0 0 6px rgba(39,255,153,.55)}}
+*{{box-sizing:border-box}}
+html,body{{margin:0;background:var(--bg);color:var(--grn);
+font-family:'Share Tech Mono',ui-monospace,Consolas,monospace}}
+body{{max-width:960px;margin:0 auto;padding:16px 18px 60px;line-height:1.55;
+position:relative;z-index:1}}
+canvas#matrix{{position:fixed;inset:0;z-index:0;opacity:.14;pointer-events:none}}
+/* scanline + flicker overlay */
+body::after{{content:"";position:fixed;inset:0;z-index:2;pointer-events:none;
+background:repeating-linear-gradient(rgba(0,0,0,0) 0 2px,rgba(0,0,0,.18) 2px 3px)}}
+a{{color:var(--grn);text-decoration:none;text-shadow:var(--glow)}}
+a:hover{{color:#eafff4;text-shadow:0 0 10px var(--grn)}}
+header{{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+border:1px solid var(--grn2);border-radius:8px;padding:10px 14px;margin-bottom:18px;
+background:linear-gradient(180deg,rgba(19,192,116,.08),transparent);
+box-shadow:var(--glow),inset 0 0 18px rgba(39,255,153,.05)}}
+.brand{{font-family:'Orbitron',sans-serif;font-weight:800;font-size:1.25rem;
+letter-spacing:3px;color:var(--grn);text-shadow:var(--glow);margin-right:auto}}
+.brand .cur{{animation:blink 1s steps(1) infinite}}
+@keyframes blink{{50%{{opacity:0}}}}
+header a{{font-weight:600;border:1px solid transparent;padding:4px 8px;border-radius:6px}}
+header a:hover{{border-color:var(--grn2);background:rgba(39,255,153,.06)}}
+h1{{font-family:'Orbitron',sans-serif;font-size:1.35rem;letter-spacing:2px;
+margin:.3em 0;text-shadow:var(--glow)}}
+h1::before{{content:"> ";color:var(--grn2)}}
+h2{{font-size:1.05rem;margin-top:1.5em;color:#9effcf;text-shadow:var(--glow)}}
+h2::before{{content:"# ";color:var(--grn2)}}
+h3{{color:#bfffe2;margin:.9em 0 .3em}}
+table{{border-collapse:collapse;width:100%;margin:10px 0}}
+th,td{{border:1px solid var(--grn2);padding:7px 9px;text-align:left;font-size:.9rem;
+vertical-align:top}}
+th{{background:rgba(39,255,153,.09);text-transform:uppercase;letter-spacing:1px;
+font-size:.78rem;color:#9effcf}}
+tr:hover td{{background:rgba(39,255,153,.04)}}
+.card{{border:1px solid var(--grn2);border-radius:8px;padding:16px;margin:12px 0;
+background:var(--panel);box-shadow:inset 0 0 20px rgba(39,255,153,.04)}}
+input,select{{padding:9px 10px;border:1px solid var(--grn2);border-radius:6px;
+font-size:.95rem;background:#02110b;color:var(--grn);font-family:inherit;
+outline:none}}
+input:focus{{box-shadow:var(--glow);border-color:var(--grn)}}
+input::placeholder{{color:var(--dim)}}
+button{{padding:9px 16px;border:1px solid var(--grn);border-radius:6px;
+background:rgba(39,255,153,.12);color:var(--grn);font-size:.92rem;cursor:pointer;
+font-family:inherit;letter-spacing:1px;text-transform:uppercase;transition:.15s}}
+button:hover{{background:var(--grn);color:#02110b;box-shadow:0 0 14px var(--grn)}}
+button.secondary{{border-color:var(--grn2);color:var(--grn2);
+background:rgba(19,192,116,.08)}}
+button.secondary:hover{{background:var(--grn2);color:#02110b;box-shadow:0 0 12px var(--grn2)}}
+button:disabled{{opacity:.4;cursor:not-allowed;box-shadow:none}}
+.badge{{display:inline-block;padding:1px 9px;border:1px solid var(--grn2);
+border-radius:999px;background:rgba(39,255,153,.1);font-size:.78rem}}
+.muted{{color:var(--dim)}} .warn{{color:var(--amber);text-shadow:0 0 6px rgba(255,179,71,.5)}}
+img.att{{max-width:220px;max-height:220px;border:1px solid var(--grn2);border-radius:6px;
+margin:4px;filter:saturate(.9)}}
+img.att:hover{{box-shadow:0 0 14px var(--grn)}}
+code{{word-break:break-all;color:#eaffb0;background:#02110b;padding:1px 5px;
+border-radius:4px;border:1px solid #1d3a2c}}
+pre.card{{white-space:pre-wrap;color:#9effcf;font-size:.85rem}}
+footer{{margin-top:26px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--grn2);
+padding-top:10px}}
+</style></head><body>
+<canvas id="matrix"></canvas>
+<header>
+<span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
+<a href="/">▸ accounts</a><a href="/search">▸ search</a>
+<a href="/recover">▸ recover</a>
+</header>{body}
+<footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
+<script>
+// Lightweight matrix rain for background flavor.
+(function(){{
+ var c=document.getElementById('matrix');if(!c)return;var x=c.getContext('2d');
+ var chars="01<>/\\|=+*#АБ01アカサ$€¥{{}};:".split("");var cols,drops;
+ function size(){{c.width=innerWidth;c.height=innerHeight;cols=Math.floor(c.width/14);
+  drops=Array(cols).fill(1);}}
+ size();addEventListener('resize',size);
+ function draw(){{x.fillStyle="rgba(5,8,10,0.08)";x.fillRect(0,0,c.width,c.height);
+  x.fillStyle="#27ff99";x.font="14px monospace";
+  for(var i=0;i<drops.length;i++){{var t=chars[Math.floor(Math.random()*chars.length)];
+   x.fillText(t,i*14,drops[i]*14);
+   if(drops[i]*14>c.height&&Math.random()>0.975)drops[i]=0;drops[i]++;}}}}
+ setInterval(draw,60);
+}})();
+</script>
+</body></html>"""
 
 
 def render(title: str, body: str) -> str:
@@ -460,8 +525,15 @@ def recover():
 
 def main():
     url = "http://127.0.0.1:5000"
-    print(f"Personal Info Scanner app running at {url}")
-    print("Everything stays on this computer. Press Ctrl+C to stop.")
+    print(r"""
+   ___                   _ ___
+  / __|_ __  ___ ___ __| | _ \_  _ _ _  _ _  ___ _ _
+  \__ \ '_ \/ -_) -_) _` |   / || | ' \| ' \/ -_) '_|
+  |___/ .__/\___\___\__,_|_|_\\_,_|_||_|_||_\___|_|
+      |_|   SPEEDRUNNER  //  local personal-data recon
+""")
+    print(f"  [+] console online at {url}")
+    print("  [+] 100% local — nothing leaves this machine. Ctrl+C to stop.")
     try:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     except Exception:
