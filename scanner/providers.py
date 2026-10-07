@@ -57,6 +57,8 @@ _reg(["comcast.net"], "imap.comcast.net")
 _reg(["att.net", "sbcglobal.net", "bellsouth.net"], "imap.mail.att.net")
 _reg(["verizon.net"], "imap.aol.com")  # Verizon mail is served by AOL
 _reg(["cox.net"], "imap.cox.net")
+_reg(["netzero.net"], "imap.netzero.net")   # NetZero (United Online)
+_reg(["juno.com"], "imap.juno.com")         # Juno (same company as NetZero)
 _reg(["mail.ru", "bk.ru", "inbox.ru", "list.ru", "internet.ru"], "imap.mail.ru")
 _reg(["my.com"], "imap.my.com")  # the myMail service by my.com / Mail.ru Group
 
