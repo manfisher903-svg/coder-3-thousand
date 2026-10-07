@@ -84,14 +84,30 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 # Endpoints reachable without being logged in.
 _PUBLIC = {"login", "register", "static"}
 
+# Auto-logout after this many minutes of INACTIVITY (0 disables it).
+TIMEOUT_MIN = int(os.environ.get("PIS_TIMEOUT_MIN", "30"))
+
 
 @app.before_request
 def _require_login():
+    import time
     if request.endpoint in _PUBLIC:
         return None
-    if session.get("user"):
-        return None
-    return redirect(url_for("login"))
+    if not session.get("user"):
+        return redirect(url_for("login"))
+    # Sliding inactivity timeout: each request resets the clock; too long a gap
+    # signs you out automatically (good when reaching it over the internet).
+    if TIMEOUT_MIN > 0:
+        now = time.time()
+        last = session.get("last", now)
+        if now - last > TIMEOUT_MIN * 60:
+            session.clear()
+            return redirect(url_for("login"))
+        # Don't reset the clock on the status poll — it would keep a left-open
+        # tab alive forever while scanning. Everything else counts as activity.
+        if request.endpoint != "scan_status":
+            session["last"] = now
+    return None
 
 # Scan progress state, kept PER USER so people don't see each other's scans.
 # user -> {"running":bool, "accounts":{email:{...}}, "order":[email,...]}
@@ -444,6 +460,7 @@ def register():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     from .users import verify
+    from .roasts import pick_login_roast
     msg = ""
     if request.method == "POST":
         name = verify(USERS_PATH, request.form.get("username", ""),
@@ -452,7 +469,7 @@ def login():
             session["user"] = name
             session.permanent = True
             return redirect(url_for("index"))
-        msg = "Wrong username or password."
+        msg = pick_login_roast()
     warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
     body = f"""
     <h1>Sign in</h1>

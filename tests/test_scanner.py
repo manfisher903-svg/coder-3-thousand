@@ -286,13 +286,38 @@ def test_setup_guides_are_provider_specific():
 
 
 def test_roasts_pool_is_clean_and_rotates():
-    from scanner.roasts import ROASTS, pick_roast
-    assert len(ROASTS) == 100
+    from scanner.roasts import ROASTS, LOGIN_ROASTS, pick_roast, pick_login_roast
+    assert len(ROASTS) == 100 and len(LOGIN_ROASTS) >= 30
     bad = ["nigg", "fag", "retard", "rape", "kys", "tranny", "spic", "chink",
            "kike", "suicide", "kill yourself"]
-    joined = " ".join(ROASTS).lower()
-    assert not [b for b in bad if b in joined], "roast pool must stay slur-free"
-    assert pick_roast().startswith("⚠️")
+    joined = (" ".join(ROASTS) + " " + " ".join(LOGIN_ROASTS)).lower()
+    assert not [b for b in bad if b in joined], "roast pools must stay slur-free"
+    assert pick_roast().startswith("⚠️") and pick_login_roast().startswith("⚠️")
+
+
+def test_auto_logout_on_inactivity():
+    import tempfile, importlib, shutil, time
+    work = tempfile.mkdtemp(); cwd = os.getcwd(); os.chdir(work)
+    os.environ["PIS_USERS"] = work + "/.pis_users.json"
+    os.environ["PIS_DATA"] = work + "/data"
+    os.environ["PIS_TIMEOUT_MIN"] = "30"
+    try:
+        import scanner.app as a
+        importlib.reload(a)
+        c = a.app.test_client()
+        r = c.post("/register", data={"username": "user1", "password": "abc123",
+                                      "password2": "abc123"}, follow_redirects=True)
+        assert b"Your email accounts" in r.data        # registered + logged in
+        assert c.get("/").status_code == 200           # active
+        with c.session_transaction() as s:
+            s["last"] = time.time() - 31 * 60          # 31 min idle
+        assert "/login" in c.get("/").headers.get("Location", "")   # kicked out
+    finally:
+        os.chdir(cwd); shutil.rmtree(work, ignore_errors=True)
+        for k in ("PIS_USERS", "PIS_DATA", "PIS_TIMEOUT_MIN"):
+            os.environ.pop(k, None)
+        import scanner.app as a
+        importlib.reload(a)
 
 
 def test_multiuser_login_and_isolation():
@@ -336,9 +361,10 @@ def test_multiuser_login_and_isolation():
         assert b"a@x.com" not in bob.get("/").data          # isolation
         assert b"a@x.com" in alice.get("/").data
 
-        # Wrong/right login.
-        assert b"Wrong username or password" in a.app.test_client().post(
-            "/login", data={"username": "alice", "password": "nope"}).data
+        # Wrong login rejected (shown via a rotating roast), right login works.
+        wrong = a.app.test_client().post(
+            "/login", data={"username": "alice", "password": "nope"})
+        assert "⚠️".encode() in wrong.data and b"Your email accounts" not in wrong.data
         assert b"a@x.com" in a.app.test_client().post(
             "/login", data={"username": "alice", "password": "secret1"},
             follow_redirects=True).data

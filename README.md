@@ -90,7 +90,11 @@ In the app you can:
   under `data/<username>/`) — nobody can see anyone else's. A **lock** link
   signs out. When a username is taken, the page fires back one of 100 rotating
   roast messages (a different featured set each week); add your own in a
-  `roasts.txt` file next to the app.
+  `roasts.txt` file next to the app. Wrong-password attempts get their own
+  rotating roasts too (`login_roasts.txt` to add your own).
+- **Auto-logout** — signs you out automatically after inactivity (default 30
+  minutes; set `PIS_TIMEOUT_MIN`, or `0` to disable). Important when you reach
+  the app over the internet and walk away.
 - **Built-in setup help** — when a scan fails (usually a login/app-password
   issue), the profile shows **step-by-step instructions for that exact provider**
   (Gmail, Yahoo, Outlook, iCloud, AOL, NetZero/Juno, or a generic fallback) with

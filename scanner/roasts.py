@@ -118,16 +118,60 @@ ROASTS = [
 ]
 
 
+LOGIN_ROASTS = [
+    "Wrong. The door says no 🚪 try again.",
+    "Nope. That's not it 💀 one more time.",
+    "Access denied, impostor 🕵️ try again.",
+    "Wrong password 😂 did you even try?",
+    "That ain't it, chief. Retry.",
+    "Nice guess. It was wrong. Again 🎯",
+    "Wrong. The server is judging you right now.",
+    "Denied 🚫 the vibes are off, so is your password.",
+    "Incorrect. Fingers crossed next time 🤞",
+    "Wrong password. Skill issue 🎮 retry.",
+    "Nope 💀 the password fairy says no.",
+    "Wrong. Try typing it like you mean it this time.",
+    "That password rage-quit. Denied. Again.",
+    "Incorrect 😤 your keyboard is snitching on you.",
+    "Wrong. Even the caps lock is laughing 🔒",
+    "Access denied. Was that a guess or a prayer? 🙏",
+    "Nope. Reload the brain, retype the password.",
+    "Wrong password 😂 somewhere your past self is disappointed.",
+    "Denied. The correct one is… not that. Try again.",
+    "Incorrect. You had 26 letters and picked wrong ones.",
+    "Wrong 💀 the login screen felt that.",
+    "Nope. Not today. Not that password. Again.",
+    "Access denied 🚨 nice try though.",
+    "Wrong. Autocomplete can't save you now. Retry.",
+    "Incorrect password. Confidence: high. Accuracy: zero.",
+    "Denied 💅 serve the right one next time.",
+    "Wrong. That was bold. And wrong. Again.",
+    "Nope 😂 the password said 'who's this?'",
+    "Incorrect. The vault stays shut 🔐 retry.",
+    "Wrong password. Have you tried… the right one?",
+    "Denied. Your memory needs a patch update 🩹",
+    "Wrong 💀 even a coin flip had better odds.",
+    "Nope. Try again, mastermind 🧠",
+    "Incorrect. The bouncer is not impressed 🚷",
+    "Wrong password 😤 run it back.",
+    "Denied. That's a swing and a miss ⚾ retry.",
+    "Nope. The login gods said 'lol no.'",
+    "Wrong. Close? No. Not close. Again.",
+    "Incorrect 💀 your fingers betrayed you.",
+    "Denied. Password rejected, ego bruised. Try again.",
+]
+
+
 def _week_seed() -> int:
     y, w, _ = date.today().isocalendar()
     return y * 100 + w
 
 
-def _pool():
-    pool = list(ROASTS)
-    # Fold in any user-added lines from roasts.txt (one per line).
+def _pool(base, extra_file):
+    pool = list(base)
+    # Fold in any user-added lines from an optional file (one per line).
     try:
-        with open("roasts.txt", "r", encoding="utf-8") as fh:
+        with open(extra_file, "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if line and not line.startswith("#"):
@@ -137,10 +181,17 @@ def _pool():
     return pool
 
 
-def pick_roast() -> str:
-    pool = _pool()
+def _pick(base, extra_file, fallback):
+    pool = _pool(base, extra_file)
     if not pool:
-        return "That username is already taken — pick another."
-    # Feature a rotating subset each week, then pick randomly within it.
+        return "⚠️ " + fallback
     weekly = random.Random(_week_seed()).sample(pool, k=min(25, len(pool)))
     return "⚠️ " + random.choice(weekly)
+
+
+def pick_roast() -> str:
+    return _pick(ROASTS, "roasts.txt", "That username is already taken — pick another.")
+
+
+def pick_login_roast() -> str:
+    return _pick(LOGIN_ROASTS, "login_roasts.txt", "Wrong username or password.")
