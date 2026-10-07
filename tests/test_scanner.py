@@ -137,6 +137,24 @@ def test_accounts_loader_email_space_password():
     assert accts[1].password == "my pass with spaces"
 
 
+def test_accounts_add_update_delete():
+    import tempfile
+    from scanner.accounts import (add_or_update, delete_account, load_accounts)
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "accounts.txt")
+    add_or_update(p, "a@gmail.com", "pw1")
+    add_or_update(p, "b@yahoo.com", "pw2")
+    assert [x.email for x in load_accounts(p)] == ["a@gmail.com", "b@yahoo.com"]
+    # update in place (change email + password), keyed by original_email
+    add_or_update(p, "a2@gmail.com", "pwX", original_email="a@gmail.com")
+    accts = {x.email: x.password for x in load_accounts(p)}
+    assert accts == {"a2@gmail.com": "pwX", "b@yahoo.com": "pw2"}, accts
+    # delete
+    assert delete_account(p, "b@yahoo.com") is True
+    assert [x.email for x in load_accounts(p)] == ["a2@gmail.com"]
+    assert delete_account(p, "missing@x.com") is False
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

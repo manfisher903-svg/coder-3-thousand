@@ -44,9 +44,13 @@ your own computer — the server only listens on localhost, nothing is uploaded.
 
 In the app you can:
 
-- **Add accounts** with a simple form (email + app password) — it saves them to
-  your accounts file automatically.
+- **Manage accounts** — add with a form, **edit** an email/password in place,
+  **delete** an account (its scan folder is removed too), and **re-scan a single
+  account** without redoing the others.
 - **Scan all accounts** with one button.
+- **Search everything** — one box searches every scanned account's services and
+  findings at once (a store name, "card", "password", part of your address…)
+  and links each hit to the account it came from.
 - **Open each account's profile** to see its services, all findings (shown in
   full), and the actual **pictures/files** it saved, right on the page.
 - **Recover access** — a page with the official password-reset link for each of

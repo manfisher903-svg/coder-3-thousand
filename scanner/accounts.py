@@ -108,6 +108,53 @@ def load_accounts(path: str) -> List[Account]:
     return unique
 
 
+def save_accounts(path: str, accounts: List[Account]) -> None:
+    """Rewrite the accounts file in the simple 'email password[ mailbox]' form."""
+    lines = ["# Your email accounts — one per line: email<space>password",
+             "# Managed by the app; edits here are fine too.", ""]
+    for a in accounts:
+        line = f"{a.email} {a.password}"
+        if a.mailbox:
+            line += f" | {a.mailbox}"   # pipe keeps a spaced mailbox intact
+        lines.append(line)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def add_or_update(path: str, email: str, password: str,
+                  mailbox: Optional[str] = None, original_email: Optional[str] = None) -> None:
+    """Add a new account, or update one in place (matched by original_email)."""
+    accounts = load_accounts(path) if os.path.exists(path) else []
+    key = (original_email or email).lower()
+    found = False
+    for a in accounts:
+        if a.email.lower() == key:
+            a.email, a.password = email, password
+            if mailbox is not None:
+                a.mailbox = mailbox or None
+            found = True
+            break
+    if not found:
+        accounts.append(Account(email=email, password=password, mailbox=mailbox))
+    save_accounts(path, accounts)
+
+
+def delete_account(path: str, email: str) -> bool:
+    """Remove an account by email. Returns True if something was removed."""
+    if not os.path.exists(path):
+        return False
+    accounts = load_accounts(path)
+    kept = [a for a in accounts if a.email.lower() != email.lower()]
+    if len(kept) == len(accounts):
+        return False
+    save_accounts(path, kept)
+    return True
+
+
 def accounts_file_warning(path: str) -> str:
     return (f"Loaded credentials from {os.path.abspath(path)} — this file holds "
             f"your passwords. Keep it private and delete it when done.")

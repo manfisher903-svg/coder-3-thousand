@@ -21,7 +21,8 @@ from html import escape
 from flask import (Flask, abort, redirect, request, send_from_directory,
                    url_for)
 
-from .accounts import load_accounts
+from .accounts import (add_or_update, delete_account, load_accounts,
+                       save_accounts)
 from .config import Config
 
 ACCOUNTS_PATH = os.environ.get("PIS_ACCOUNTS", "accounts.txt")
@@ -59,7 +60,8 @@ font-size:.8rem}} .muted{{color:#6b7280}} .warn{{color:#b45309}}
 img.att{{max-width:220px;max-height:220px;border:1px solid #8884;border-radius:8px;
 margin:4px}} code{{word-break:break-all}}
 </style></head><body><header>
-<a href="/">🏠 Accounts</a><a href="/recover">🔑 Recover access</a>
+<a href="/">🏠 Accounts</a><a href="/search">🔎 Search</a>
+<a href="/recover">🔑 Recover access</a>
 <span class="muted">Personal Info Scanner — all local</span>
 </header>{body}</body></html>"""
 
@@ -110,8 +112,28 @@ def index():
         else:
             summary = '<span class="muted">not scanned yet</span>'
             link = ""
-        rows += (f"<tr><td>{escape(a.email)}</td><td>{summary}</td>"
-                 f"<td>{link}</td></tr>")
+        em = escape(a.email)
+        disabled = "disabled" if running else ""
+        actions = (
+            f'{link} '
+            f'<form method="post" action="/accounts/rescan" style="display:inline">'
+            f'<input type="hidden" name="email" value="{em}">'
+            f'<button class="secondary" {disabled}>Re-scan</button></form> '
+            f'<button class="secondary" type="button" '
+            f'onclick="document.getElementById(\'edit-{folder}\').style.display=\'block\'">'
+            f'Edit</button> '
+            f'<form method="post" action="/accounts/delete" style="display:inline" '
+            f'onsubmit="return confirm(\'Remove {em}? This also deletes its scan folder.\')">'
+            f'<input type="hidden" name="email" value="{em}">'
+            f'<button class="secondary">Delete</button></form>'
+            f'<div id="edit-{folder}" style="display:none;margin-top:8px">'
+            f'<form method="post" action="/accounts/edit">'
+            f'<input type="hidden" name="original_email" value="{em}">'
+            f'<input name="email" value="{em}" style="min-width:200px"> '
+            f'<input name="password" placeholder="new app password" style="min-width:180px"> '
+            f'<button>Save</button></form></div>'
+        )
+        rows += (f"<tr><td>{em}</td><td>{summary}</td><td>{actions}</td></tr>")
     if not rows:
         rows = '<tr><td colspan="3" class="muted">No accounts yet — add one below.</td></tr>'
 
@@ -154,19 +176,41 @@ def add_account():
     email = (request.form.get("email") or "").strip()
     password = (request.form.get("password") or "").strip()
     if email and password:
-        # Append in the simple "email password" format.
-        line = f"{email} {password}\n"
-        with open(ACCOUNTS_PATH, "a", encoding="utf-8") as fh:
-            fh.write(line)
-        try:
-            os.chmod(ACCOUNTS_PATH, 0o600)
-        except OSError:
-            pass
+        add_or_update(ACCOUNTS_PATH, email, password)
     return redirect(url_for("index"))
 
 
-def _run_scan():
-    from .batch import run_batch
+@app.route("/accounts/edit", methods=["POST"])
+def edit_account():
+    original = (request.form.get("original_email") or "").strip()
+    email = (request.form.get("email") or "").strip()
+    password = (request.form.get("password") or "").strip()
+    if original and email:
+        # Keep the existing password if the field was left blank.
+        if not password:
+            for a in load_accounts(ACCOUNTS_PATH):
+                if a.email.lower() == original.lower():
+                    password = a.password
+                    break
+        add_or_update(ACCOUNTS_PATH, email, password, original_email=original)
+    return redirect(url_for("index"))
+
+
+@app.route("/accounts/delete", methods=["POST"])
+def remove_account():
+    import shutil
+    email = (request.form.get("email") or "").strip()
+    if email:
+        # Remove the scan folder too, so stale data doesn't linger.
+        from .accounts import Account
+        folder = Account(email=email, password="").safe_name()
+        delete_account(ACCOUNTS_PATH, email)
+        shutil.rmtree(os.path.join(OUTPUT_DIR, folder), ignore_errors=True)
+    return redirect(url_for("index"))
+
+
+def _run_scan(only_email: str = None):
+    from .batch import run_batch, scan_one, write_index
 
     base = _load_base_config()
 
@@ -175,12 +219,43 @@ def _run_scan():
             _scan_state["log"].append(msg)
 
     try:
-        summaries = run_batch(ACCOUNTS_PATH, base, OUTPUT_DIR, progress=progress)
-        with _scan_lock:
-            _scan_state["summaries"] = summaries
+        if only_email:
+            accts = [a for a in load_accounts(ACCOUNTS_PATH)
+                     if a.email.lower() == only_email.lower()]
+            for a in accts:
+                acct_dir = os.path.join(OUTPUT_DIR, a.safe_name())
+                scan_one(a, base, acct_dir, progress)
+            # Rebuild the overview from every account's current report.
+            summaries = []
+            for a in load_accounts(ACCOUNTS_PATH):
+                rp = os.path.join(OUTPUT_DIR, a.safe_name(), "report.json")
+                if os.path.exists(rp):
+                    try:
+                        d = json.load(open(rp))
+                        summaries.append({"email": a.email, "folder": a.safe_name(),
+                                          "services": d.get("service_count", 0),
+                                          "sensitive": d.get("sensitive_count", 0),
+                                          "status": "ok"})
+                    except Exception:
+                        pass
+            write_index(OUTPUT_DIR, summaries)
+        else:
+            run_batch(ACCOUNTS_PATH, base, OUTPUT_DIR, progress=progress)
     finally:
         with _scan_lock:
             _scan_state["running"] = False
+
+
+@app.route("/accounts/rescan", methods=["POST"])
+def rescan_account():
+    email = (request.form.get("email") or "").strip()
+    with _scan_lock:
+        if not _scan_state["running"] and email:
+            _scan_state["running"] = True
+            _scan_state["log"] = [f"Re-scanning {email}…"]
+            threading.Thread(target=_run_scan, kwargs={"only_email": email},
+                             daemon=True).start()
+    return redirect(url_for("index"))
 
 
 @app.route("/scan", methods=["POST"])
@@ -267,6 +342,79 @@ def serve_file(folder, path):
     directory = os.path.abspath(os.path.join(OUTPUT_DIR, folder))
     # send_from_directory guards against path traversal out of `directory`.
     return send_from_directory(directory, path)
+
+
+def _all_reports():
+    """Yield (account_email, folder, report_dict) for every scanned account."""
+    if not os.path.isdir(OUTPUT_DIR):
+        return
+    for folder in sorted(os.listdir(OUTPUT_DIR)):
+        rp = os.path.join(OUTPUT_DIR, folder, "report.json")
+        if os.path.isfile(rp):
+            try:
+                d = json.load(open(rp))
+            except Exception:
+                continue
+            yield (d.get("account") or folder, folder, d)
+
+
+@app.route("/search")
+def search():
+    q = (request.args.get("q") or "").strip()
+    results_html = ""
+    total = 0
+
+    if q:
+        ql = q.lower()
+        for email, folder, d in _all_reports():
+            svc_hits, find_hits = [], []
+
+            for cat, entries in (d.get("services_by_category") or {}).items():
+                for e in entries:
+                    hay = " ".join([e.get("brand", ""), cat,
+                                    " ".join(e.get("domains", [])),
+                                    " ".join(e.get("sample_subjects", []))]).lower()
+                    if ql in hay:
+                        svc_hits.append(f"{escape(e.get('brand',''))} "
+                                        f"<span class='muted'>({escape(cat)})</span>")
+
+            for h in d.get("sensitive_findings", []):
+                hay = " ".join([h.get("kind", ""), str(h.get("value", "")),
+                                h.get("location", ""), h.get("advice", "")]).lower()
+                if ql in hay:
+                    find_hits.append(
+                        f"<tr><td>{escape(h['kind'])}</td>"
+                        f"<td><code>{escape(str(h['value']))}</code></td>"
+                        f"<td>{escape(h['location'])}</td></tr>")
+
+            if svc_hits or find_hits:
+                total += len(svc_hits) + len(find_hits)
+                block = f'<h3><a href="{url_for("profile", folder=folder)}">{escape(email)}</a></h3>'
+                if svc_hits:
+                    block += "<p>Services: " + ", ".join(svc_hits) + "</p>"
+                if find_hits:
+                    block += ("<table><tr><th>Type</th><th>Value</th><th>Where</th></tr>"
+                              + "".join(find_hits) + "</table>")
+                results_html += f'<div class="card">{block}</div>'
+
+        if not results_html:
+            results_html = f'<p class="muted">No matches for “{escape(q)}”.</p>'
+        else:
+            results_html = (f'<p class="muted">{total} match(es) for '
+                            f'“{escape(q)}”.</p>' + results_html)
+
+    body = f"""
+    <h1>Search everything</h1>
+    <form method="get" action="/search">
+      <input name="q" value="{escape(q)}" placeholder="card, address, a store name, SSN…"
+        style="min-width:300px" autofocus>
+      <button>Search</button>
+    </form>
+    <p class="muted">Searches every scanned account's services and findings.
+    Try a store name, “card”, “password”, part of your address, etc.</p>
+    {results_html}
+    """
+    return render("Search", body)
 
 
 @app.route("/recover")
