@@ -300,6 +300,10 @@ def index():
             summary = '<span class="muted">not scanned yet</span>'
             link = ""
         em = escape(a.email)
+        saved = ('<span class="muted" title="Password saved — reused every scan, '
+                 'no need to re-enter">🔑 saved</span>'
+                 if (a.password or "").strip()
+                 else '<span class="warn">no password</span>')
         disabled = "disabled" if running else ""
         actions = (
             f'{link} '
@@ -320,7 +324,8 @@ def index():
             f'<input name="password" placeholder="new app password" style="min-width:180px"> '
             f'<button>Save</button></form></div>'
         )
-        rows += (f"<tr><td>{em}</td><td>{summary}</td><td>{actions}</td></tr>")
+        rows += (f"<tr><td>{em}<br>{saved}</td><td>{summary}</td>"
+                 f"<td>{actions}</td></tr>")
     if not rows:
         rows = '<tr><td colspan="3" class="muted">No accounts yet — add one below.</td></tr>'
 
