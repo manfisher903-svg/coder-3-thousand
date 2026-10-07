@@ -221,8 +221,11 @@ its status is shown in the table.
 - **Services & accounts index** — grouped by category (shopping, banking,
   insurance, crypto, subscriptions, utilities, travel, health, government…),
   with the sender and a sample subject line so you can recognize each one.
-- **Sensitive findings** — redacted, with location (which message/file) and a
-  recommended action.
+- **Sensitive findings** — with location (which message/file) and a recommended
+  action. Detects card numbers (Luhn-checked), SSN/ITIN, bank account & routing,
+  IBAN, gift cards, plaintext passwords, private keys & crypto seed phrases, and
+  **tax info** (W-2, 1099, 1040, EIN, IRS/TurboTax references). Scans run across
+  **every folder — inbox, sent, archive, spam — and all of time**.
 - **Attachments of interest** — optionally saved to the output directory when
   `--save-attachments` is passed and the message looks personal.
 

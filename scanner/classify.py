@@ -27,8 +27,10 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
                "airbnb", "boarding pass", "airline", "expedia"],
     "health": ["health", "pharmacy", "prescription", "medical", "patient",
                "doctor", "clinic", "lab results", "appointment"],
-    "government": ["irs", "dmv", "passport", "social security", "gov",
-                   "tax return", "benefits", "license renewal"],
+    "government": ["dmv", "passport", "social security", "gov",
+                   "benefits", "license renewal"],
+    "tax": ["irs", "turbotax", "taxact", "h&r block", "tax return", "w-2", "w2",
+            "1099", "1040", "tax year", "tax document", "tax refund", "taxes"],
     "identity": ["verify your email", "reset your password", "welcome to",
                  "your account", "sign-in", "two-factor", "confirm your account"],
 }

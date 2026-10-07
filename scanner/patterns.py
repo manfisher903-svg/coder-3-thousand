@@ -76,6 +76,19 @@ _ADDRESS_RE = re.compile(
     r"(?:\s*,?\s*(?:Apt|Unit|Ste|Suite|#)\s*\w+)?",
     re.IGNORECASE)
 
+# --- tax info -------------------------------------------------------------
+# Employer Identification Number, written near an EIN label (XX-XXXXXXX).
+_EIN_RE = re.compile(
+    r"(?:ein|employer\s+identification(?:\s*(?:no\.?|number|#))?)\D{0,8}(\d{2}-\d{7})",
+    re.IGNORECASE)
+# Tax forms / IRS references that mean "tax documents live in this email".
+_TAX_DOC_RE = re.compile(
+    r"\b(W-?2|1099(?:-[A-Z]{1,4})?|1098(?:-[A-Z]{1,4})?|1040(?:-[A-Z]{1,4})?|"
+    r"W-?4|W-?9|Schedule\s+[A-K]|K-1|tax\s+return|adjusted\s+gross\s+income|"
+    r"\bAGI\b|TurboTax|TaxAct|H&R\s*Block|IRS|tax\s+year\s+\d{4}|"
+    r"tax\s+(?:document|statement|transcript|refund))\b",
+    re.IGNORECASE)
+
 
 def _find_cards(text: str) -> List[Finding]:
     out: List[Finding] = []
@@ -142,6 +155,11 @@ SENSITIVE_DETECTORS: List[Tuple[str, Callable[[str], List[Finding]]]] = [
                          "password manager.")),
     ("gift_card", _group1(_GIFTCARD_RE, "gift_card", "medium",
                           "Possible gift card / redemption code — still has value.")),
+    ("ein", _group1(_EIN_RE, "ein", "medium",
+                    "Employer Identification Number (a tax ID). Keep it private.")),
+    ("tax_document", _simple(_TAX_DOC_RE, "tax_document", "medium",
+                             "Tax info in this email (W-2/1099/1040/IRS, etc.). "
+                             "Store tax documents securely, not in your inbox.")),
 ]
 
 # Identity / contact details found in your own inbox. These are "low" severity

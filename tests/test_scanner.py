@@ -193,6 +193,17 @@ def test_mailbox_sweep_logic():
     assert src_for("imap.gmail.com", "INBOX")._list_mailboxes(FakeConn([])) == ["INBOX"]
 
 
+def test_tax_detection():
+    kinds = {}
+    for f in scan_sensitive("Your W-2 for tax year 2024. EIN: 12-3456789. "
+                            "1099-INT attached. IRS refund pending."):
+        kinds.setdefault(f.kind, set()).add(f.raw)
+    assert "ein" in kinds and "12-3456789" in kinds["ein"]
+    assert "tax_document" in kinds
+    from scanner.classify import classify
+    assert classify("mail.turbotax.com", "Your W-2 is ready", "")[0] == "tax"
+
+
 def test_identity_detectors_and_grouping():
     from scanner.report import Inventory
     sample = ("contact john.doe@example.com or (415) 555-0142; "
