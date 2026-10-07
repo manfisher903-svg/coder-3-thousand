@@ -49,6 +49,7 @@ class Inventory:
         self.sources_scanned: int = 0
         self.suspicious: List[dict] = []          # flagged phishing/scam emails
         self.name_counts: Dict[str, int] = {}     # candidate owner names
+        self.protocol: str = "imap"               # imap | pop3 (how it connected)
 
     def add_service(self, brand: Optional[str], category: str, domain: str, subject: str):
         key = (brand or domain or category).lower()
@@ -136,6 +137,7 @@ class Inventory:
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "account": self.account,
             "scan_error": self.error,
+            "protocol": self.protocol,
             "detail_level": self.detail,
             "sources_scanned": self.sources_scanned,
             "services_by_category": dict(by_category),

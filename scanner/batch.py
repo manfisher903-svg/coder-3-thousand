@@ -75,6 +75,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
     _emit(progress, event="start", email=account.email)
     try:
         src = EmailSource(email_cfg)
+        inv.protocol = getattr(src.cfg, "protocol", "imap")
         count = 0
         for rec in src.iter_messages():
             count += 1

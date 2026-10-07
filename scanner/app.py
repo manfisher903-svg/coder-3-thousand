@@ -528,15 +528,35 @@ def profile(folder):
                   f'<p class="muted">Fix it, then click <b>Re-scan</b> on the '
                   f'accounts page.</p></div>')
     elif scanned_n == 0:
-        banner = ('<div class="card" style="border-color:var(--amber)">'
-                  '<b class="warn">The login worked but 0 messages were read.</b>'
-                  '<p class="muted">Usually one of these:</p>'
-                  '<ul><li>Your mail is in other folders, not the Inbox. For '
-                  'Gmail set the mailbox to <code>[Gmail]/All Mail</code> in '
-                  'config.yaml.</li>'
-                  '<li>Your mail is older than the scan window. Set '
-                  '<code>since_days: 0</code> in config.yaml to scan everything.</li>'
-                  '<li>IMAP access is limited on this account/plan.</li></ul></div>')
+        if d.get("protocol") == "pop3":
+            banner = ('<div class="card" style="border-color:var(--amber)">'
+                      '<b class="warn">Logged in, but the mailbox returned 0 '
+                      'messages (POP3).</b>'
+                      '<p class="muted">This account (NetZero/Juno-type) only '
+                      'supports <b>POP3</b>, which can read <b>only the Inbox</b> '
+                      '— not Sent, Archive, or any folders. So:</p>'
+                      '<ul>'
+                      '<li>If your mail is filed in <b>folders</b> or already read/'
+                      'moved out of the Inbox, POP can\'t see it — only what\'s '
+                      'sitting in the Inbox right now.</li>'
+                      '<li>These free legacy providers often expose little or '
+                      'nothing of stored webmail over POP.</li>'
+                      '<li>Check the account\'s <b>webmail Inbox</b>: if it\'s empty '
+                      '(mail is in folders), there\'s nothing for POP to return.</li>'
+                      '</ul>'
+                      '<p class="muted">A mainstream provider (Gmail/Yahoo/Outlook) '
+                      'supports full-folder IMAP and scans completely.</p></div>')
+        else:
+            banner = ('<div class="card" style="border-color:var(--amber)">'
+                      '<b class="warn">The login worked, but 0 messages were read.</b>'
+                      '<p class="muted">The app already scans every folder and all '
+                      'of time, so this usually means:</p>'
+                      '<ul>'
+                      '<li>This account genuinely has no mail in it, or</li>'
+                      '<li>IMAP isn\'t fully enabled. For Gmail: Settings → '
+                      'Forwarding and POP/IMAP → <b>Enable IMAP</b>. Yahoo/Outlook '
+                      'need an <b>app password</b> too.</li>'
+                      '</ul></div>')
     elif d.get("service_count", 0) == 0 and d.get("sensitive_count", 0) == 0:
         banner = (f'<div class="card" style="border-color:var(--amber)">'
                   f'<b class="warn">Read {scanned_n} messages but matched nothing.</b>'
