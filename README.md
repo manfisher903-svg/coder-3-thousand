@@ -64,6 +64,10 @@ In the app you can:
 - **Best guess — your real details** — instead of a pile of candidates, the
   profile shows the most consistently-seen name, email, phone, home address and
   DOB first (ranked by how often each appears).
+- **Built-in setup help** — when a scan fails (usually a login/app-password
+  issue), the profile shows **step-by-step instructions for that exact provider**
+  (Gmail, Yahoo, Outlook, iCloud, AOL, NetZero/Juno, or a generic fallback) with
+  the real settings link, so you know precisely what to fix.
 - **Update in one click** — the launch scripts auto-update to the latest version
   on start, and there's an **⟳ Update app** button in the app. Both pull fresh
   code from GitHub (no Git or ZIP needed) and **keep your accounts and scans**.

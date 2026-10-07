@@ -273,6 +273,18 @@ def test_profile_uses_only_legit_mail():
     assert d["best_guess"]["name"]["value"] == "Chris Martinez"
 
 
+def test_setup_guides_are_provider_specific():
+    from scanner.setup_help import get_setup_guide
+    assert get_setup_guide("x@yahoo.com")["provider"] == "Yahoo"
+    assert "login.yahoo.com" in get_setup_guide("x@yahoo.com")["url"]
+    assert get_setup_guide("x@gmail.com")["provider"] == "Gmail"
+    assert get_setup_guide("x@icloud.com")["provider"] == "iCloud"
+    assert get_setup_guide("x@netzero.net")["provider"] == "NetZero / Juno"
+    # Unknown domain still returns usable generic steps.
+    g = get_setup_guide("x@weirdmail.io")
+    assert g["steps"] and "weirdmail.io" in g["provider"]
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

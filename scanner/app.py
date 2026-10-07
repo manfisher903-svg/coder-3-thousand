@@ -522,11 +522,21 @@ def profile(folder):
     scanned_n = d.get("sources_scanned", 0)
     banner = ""
     if d.get("scan_error"):
+        from .setup_help import get_setup_guide
+        g = get_setup_guide(d.get("account") or folder)
+        steps = "".join(f"<li>{escape(s)}</li>" for s in g["steps"])
+        link = (f'<p>➜ <a href="{escape(g["url"])}" target="_blank" '
+                f'rel="noopener">Open {escape(g["provider"])} settings</a></p>'
+                if g.get("url") else "")
+        note = f'<p class="muted">{escape(g["note"])}</p>' if g.get("note") else ""
         banner = (f'<div class="card" style="border-color:var(--red)">'
                   f'<b style="color:var(--red)">⚠ This scan failed.</b>'
                   f'<p>{escape(d["scan_error"])}</p>'
-                  f'<p class="muted">Fix it, then click <b>Re-scan</b> on the '
-                  f'accounts page.</p></div>')
+                  f'<hr style="border-color:var(--grn2)">'
+                  f'<b>How to fix it for {escape(g["provider"])}:</b>'
+                  f'{note}<ol>{steps}</ol>{link}'
+                  f'<p class="muted">Then click <b>Re-scan</b> on the accounts '
+                  f'page.</p></div>')
     elif scanned_n == 0:
         if d.get("protocol") == "pop3":
             banner = ('<div class="card" style="border-color:var(--amber)">'
