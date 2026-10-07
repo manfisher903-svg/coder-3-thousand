@@ -2,3 +2,5 @@ PyYAML>=6.0
 # Standard library covers imaplib, email, re, etc.
 # Optional: install `cryptography` if you want encrypted output.
 cryptography>=41.0
+# For the desktop/browser app (python -m scanner.app):
+Flask>=3.0

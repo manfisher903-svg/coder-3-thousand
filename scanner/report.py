@@ -39,8 +39,9 @@ class SensitiveHit:
 
 
 class Inventory:
-    def __init__(self, detail: str):
+    def __init__(self, detail: str, account: str = ""):
         self.detail = detail
+        self.account = account
         self.services: Dict[str, ServiceEntry] = {}
         self.sensitive: List[SensitiveHit] = []
         self.attachments: List[str] = []
@@ -90,6 +91,7 @@ class Inventory:
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "account": self.account,
             "detail_level": self.detail,
             "sources_scanned": self.sources_scanned,
             "services_by_category": dict(by_category),

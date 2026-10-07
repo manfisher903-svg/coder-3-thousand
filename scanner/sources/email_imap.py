@@ -20,6 +20,13 @@ from ..providers import resolve_imap
 
 
 @dataclass
+class Attachment:
+    filename: str
+    content_type: str
+    data: bytes
+
+
+@dataclass
 class MessageRecord:
     uid: str
     date: Optional[datetime]
@@ -28,11 +35,19 @@ class MessageRecord:
     sender_domain: str
     subject: str
     body_text: str
-    attachments: List[str] = field(default_factory=list)  # filenames only
+    attachments: List[Attachment] = field(default_factory=list)
+
+    @property
+    def attachment_names(self) -> List[str]:
+        return [a.filename for a in self.attachments]
 
     @property
     def snippet(self) -> str:
         return " ".join(self.body_text.split())[:400]
+
+
+# Don't hold more than this per attachment in memory (bytes).
+_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 
 
 def _decode(value: Optional[str]) -> str:
@@ -44,9 +59,9 @@ def _decode(value: Optional[str]) -> str:
         return value
 
 
-def _extract_body(msg: email.message.Message) -> Tuple[str, List[str]]:
+def _extract_body(msg: email.message.Message) -> Tuple[str, List[Attachment]]:
     text_parts: List[str] = []
-    attachments: List[str] = []
+    attachments: List[Attachment] = []
 
     if msg.is_multipart():
         for part in msg.walk():
@@ -54,7 +69,12 @@ def _extract_body(msg: email.message.Message) -> Tuple[str, List[str]]:
             disp = str(part.get("Content-Disposition") or "")
             filename = part.get_filename()
             if filename:
-                attachments.append(_decode(filename))
+                try:
+                    data = part.get_payload(decode=True) or b""
+                except Exception:
+                    data = b""
+                if len(data) <= _MAX_ATTACHMENT_BYTES:
+                    attachments.append(Attachment(_decode(filename), ctype, data))
                 continue
             if ctype == "text/plain" and "attachment" not in disp:
                 text_parts.append(_payload_to_text(part))

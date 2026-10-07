@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from typing import List
 
@@ -76,8 +77,18 @@ def _scan_email(cfg: Config, inv: Inventory, save_attachments: bool, out_dir: st
             inv.add_findings(findings, loc)
 
         if save_attachments and rec.attachments and (findings or category != "other"):
-            for name in rec.attachments:
-                inv.attachments.append(f"{name}  (from {rec.sender_email})")
+            att_dir = os.path.join(out_dir, "attachments")
+            os.makedirs(att_dir, exist_ok=True)
+            for att in rec.attachments:
+                safe = re.sub(r"[^A-Za-z0-9._-]", "_", att.filename or "file")
+                dest = os.path.join(att_dir, f"{count:05d}_{safe}")
+                try:
+                    with open(dest, "wb") as fh:
+                        fh.write(att.data)
+                    os.chmod(dest, 0o600)
+                    inv.attachments.append(os.path.relpath(dest, out_dir))
+                except OSError:
+                    inv.attachments.append(f"{att.filename} (from {rec.sender_email})")
 
         if count % 250 == 0:
             print(f"  …scanned {count} messages", file=sys.stderr)
@@ -157,10 +168,8 @@ def cmd_scan(args) -> int:
 
 def cmd_scan_all(args) -> int:
     """Scan many accounts from a credentials file; one report folder each."""
-    import copy
-
     from .accounts import accounts_file_warning, load_accounts
-    from .config import Config, EmailConfig
+    from .batch import run_batch
 
     _print_banner()
 
@@ -188,81 +197,14 @@ def cmd_scan_all(args) -> int:
     print(accounts_file_warning(args.accounts), file=sys.stderr)
     print(f"Scanning {len(accounts)} account(s)…\n", file=sys.stderr)
 
-    out_root = base.output.directory
-    os.makedirs(out_root, exist_ok=True)
-    try:
-        os.chmod(out_root, 0o700)
-    except OSError:
-        pass
+    summaries = run_batch(args.accounts, base, base.output.directory,
+                          progress=lambda m: print(f"  {m}", file=sys.stderr))
 
-    summaries = []
-    for i, acct in enumerate(accounts, 1):
-        print(f"[{i}/{len(accounts)}] {acct.email}", file=sys.stderr)
-        acct_dir = os.path.join(out_root, acct.safe_name())
-
-        email_cfg = EmailConfig(
-            enabled=True,
-            host=acct.host or "",
-            username=acct.email,
-            password=acct.password,
-            mailbox=acct.mailbox or base.email.mailbox,
-            since_days=base.email.since_days,
-            max_messages=base.email.max_messages,
-        )
-        acct_cfg = copy.deepcopy(base)
-        acct_cfg.email = email_cfg
-        acct_cfg.output.directory = acct_dir
-
-        inv = Inventory(detail=acct_cfg.output.detail)
-        status = "ok"
-        try:
-            _scan_email(acct_cfg, inv, acct_cfg.output.save_attachments, acct_dir)
-        except Exception as exc:  # noqa: BLE001
-            status = f"failed: {exc}"
-            print(f"  -> {status}", file=sys.stderr)
-
-        written = write_reports(inv, acct_dir)
-        if acct_cfg.output.encrypt_passphrase:
-            try:
-                from .crypto_store import encrypt_bundle
-                encrypt_bundle(written, acct_dir, acct_cfg.output.encrypt_passphrase)
-            except Exception as exc:  # noqa: BLE001
-                print(f"  encryption skipped: {exc}", file=sys.stderr)
-
-        summaries.append({
-            "email": acct.email,
-            "folder": acct.safe_name(),
-            "services": len(inv.services),
-            "sensitive": len(inv.sensitive),
-            "status": status,
-        })
-
-    _write_batch_index(out_root, summaries)
     ok = sum(1 for s in summaries if s["status"] == "ok")
     print(f"\nDone. {ok}/{len(summaries)} account(s) scanned cleanly.", file=sys.stderr)
-    print(f"Per-account reports under {out_root}/<address>/report.md", file=sys.stderr)
-    print(f"Overview: {os.path.join(out_root, 'index.md')}", file=sys.stderr)
+    print(f"Per-account reports under {base.output.directory}/<address>/report.md",
+          file=sys.stderr)
     return 0
-
-
-def _write_batch_index(out_root: str, summaries: list) -> None:
-    lines = ["# Personal Info — all accounts", ""]
-    lines.append(f"Scanned **{len(summaries)}** account(s). "
-                 "Each has its own folder with a `report.md`.\n")
-    lines.append("| Account | Services | Sensitive findings | Report | Status |")
-    lines.append("|---|---|---|---|---|")
-    for s in summaries:
-        report = f"[{s['folder']}/report.md]({s['folder']}/report.md)"
-        lines.append(f"| {s['email']} | {s['services']} | {s['sensitive']} | "
-                     f"{report} | {s['status']} |")
-    lines.append("")
-    path = os.path.join(out_root, "index.md")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines))
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
 
 
 def build_parser() -> argparse.ArgumentParser:

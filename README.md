@@ -29,7 +29,36 @@ This tool is deliberately conservative about secrets:
    with `encrypt_passphrase`, and should be deleted when you're done. If a seed
    phrase shows up in your email, consider moving it offline afterward.
 
-## Install
+## The app (easiest way to use it)
+
+Instead of typing commands, you can open it like an app in your browser:
+
+```bash
+pip install -r requirements.txt
+python -m scanner.app
+```
+
+…or just double-click **`run_app.sh`** (Mac/Linux) or **`run_app.bat`**
+(Windows). It opens `http://127.0.0.1:5000` in your browser. Everything runs on
+your own computer — the server only listens on localhost, nothing is uploaded.
+
+In the app you can:
+
+- **Add accounts** with a simple form (email + app password) — it saves them to
+  your accounts file automatically.
+- **Scan all accounts** with one button.
+- **Open each account's profile** to see its services, all findings (shown in
+  full), and the actual **pictures/files** it saved, right on the page.
+- **Recover access** — a page with the official password-reset link for each of
+  your providers, to get back into accounts you're locked out of.
+
+> Note on getting back into old accounts: the app does **not** try to guess or
+> brute-force passwords — that doesn't work on modern email (a few wrong tries
+> locks the account) and is how account-takeover attacks work. The **Recover
+> access** page uses each provider's official reset flow instead, which is the
+> reliable way back in even when you've forgotten the password entirely.
+
+## Install (command-line use)
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
