@@ -60,6 +60,22 @@ _SEED_RE = re.compile(
     rf"\b(?:{_WORD}\s+){{11}}{_WORD}\b(?:\s+(?:{_WORD}\s+){{11}}{_WORD}\b)?"
 )
 
+# --- identity / contact details (for the "my info in my inbox" audit) ------
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+_PHONE_RE = re.compile(
+    r"(?<!\d)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")
+_DOB_RE = re.compile(
+    r"(?:date of birth|d\.?o\.?b\.?|birth\s*date|born(?:\s+on)?)\s*[:\-]?\s*"
+    r"((?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4})|"
+    r"(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}))",
+    re.IGNORECASE)
+_ADDRESS_RE = re.compile(
+    r"\b\d{1,6}\s+(?:[A-Za-z0-9.'-]+\s){1,4}"
+    r"(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Dr|Drive|Lane|Ln|Ct|Court|Way|"
+    r"Pl|Place|Ter|Terrace|Cir|Circle|Hwy|Highway|Pkwy|Parkway)\.?"
+    r"(?:\s*,?\s*(?:Apt|Unit|Ste|Suite|#)\s*\w+)?",
+    re.IGNORECASE)
+
 
 def _find_cards(text: str) -> List[Finding]:
     out: List[Finding] = []
@@ -128,9 +144,28 @@ SENSITIVE_DETECTORS: List[Tuple[str, Callable[[str], List[Finding]]]] = [
                           "Possible gift card / redemption code — still has value.")),
 ]
 
+# Identity / contact details found in your own inbox. These are "low" severity
+# because they're normal to have — the point is to SEE what's exposed so you can
+# remove or secure it. Kinds here are grouped as "Personal info found".
+IDENTITY_KINDS = {"email_address", "phone", "date_of_birth", "mailing_address"}
+
+IDENTITY_DETECTORS: List[Tuple[str, Callable[[str], List[Finding]]]] = [
+    ("phone", _simple(_PHONE_RE, "phone", "low",
+                      "A phone number appears in this inbox.")),
+    ("email_address", _simple(_EMAIL_RE, "email_address", "low",
+                              "An email address appears in this inbox.")),
+    ("date_of_birth", _group1(_DOB_RE, "date_of_birth", "low",
+                              "A date of birth appears in this inbox — sensitive, "
+                              "consider removing it from stored mail.")),
+    ("mailing_address", _simple(_ADDRESS_RE, "mailing_address", "low",
+                                "A mailing address appears in this inbox.")),
+]
+
 
 def scan_sensitive(text: str) -> List[Finding]:
     findings: List[Finding] = []
     for _name, fn in SENSITIVE_DETECTORS:
+        findings.extend(fn(text))
+    for _name, fn in IDENTITY_DETECTORS:
         findings.extend(fn(text))
     return findings

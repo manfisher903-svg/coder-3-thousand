@@ -193,6 +193,23 @@ def test_mailbox_sweep_logic():
     assert src_for("imap.gmail.com", "INBOX")._list_mailboxes(FakeConn([])) == ["INBOX"]
 
 
+def test_identity_detectors_and_grouping():
+    from scanner.report import Inventory
+    sample = ("contact john.doe@example.com or (415) 555-0142; "
+              "123 Oak Avenue; DOB: 03/14/1988; john.doe@example.com")
+    kinds = {f.kind for f in scan_sensitive(sample)}
+    assert {"email_address", "phone", "mailing_address", "date_of_birth"} <= kinds
+
+    inv = Inventory(detail="full", account="me@x.com")
+    inv.add_findings(scan_sensitive(sample), "loc")
+    d = inv.to_dict()
+    # Identity items live under personal_info, not sensitive_findings.
+    assert d["personal_info"].get("email_address"), d["personal_info"]
+    assert d["personal_info"]["email_address"][0]["count"] == 2  # deduped
+    assert all(f["kind"] not in {"email_address", "phone"}
+               for f in d["sensitive_findings"])
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

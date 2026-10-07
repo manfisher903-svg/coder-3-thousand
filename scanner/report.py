@@ -81,14 +81,35 @@ class Inventory:
         for cat in by_category:
             by_category[cat].sort(key=lambda s: -s["message_count"])
 
+        from .patterns import IDENTITY_KINDS
+
         sev_order = {"high": 0, "medium": 1, "low": 2}
         sensitive = sorted(
             ({
                 "kind": h.kind, "severity": h.severity, "location": h.location,
                 "value": h.rendered, "advice": h.advice,
-            } for h in self.sensitive),
+            } for h in self.sensitive if h.kind not in IDENTITY_KINDS),
             key=lambda h: sev_order.get(h["severity"], 9),
         )
+
+        # Personal info (contact/identity) grouped by kind, de-duplicated by
+        # value, with how many times each appeared and where it was first seen.
+        pi: Dict[str, Dict[str, dict]] = {}
+        for h in self.sensitive:
+            if h.kind not in IDENTITY_KINDS:
+                continue
+            bucket = pi.setdefault(h.kind, {})
+            key = h.rendered.strip().lower()
+            if key in bucket:
+                bucket[key]["count"] += 1
+            else:
+                bucket[key] = {"value": h.rendered, "count": 1,
+                               "location": h.location}
+        personal_info = {
+            kind: sorted(vals.values(), key=lambda v: -v["count"])
+            for kind, vals in pi.items()
+        }
+        personal_info_count = sum(len(v) for v in personal_info.values())
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -99,7 +120,9 @@ class Inventory:
             "services_by_category": dict(by_category),
             "service_count": len(self.services),
             "sensitive_findings": sensitive,
-            "sensitive_count": len(self.sensitive),
+            "sensitive_count": len(sensitive),
+            "personal_info": personal_info,
+            "personal_info_count": personal_info_count,
             "attachments_saved": self.attachments,
         }
 

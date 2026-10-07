@@ -456,6 +456,24 @@ def profile(folder):
                  f"<th>Where</th><th>Advice</th></tr>{find_rows}</table>"
                  if find_rows else "<p class='muted'>No sensitive items found.</p>")
 
+    # Personal info found (contact/identity), grouped and de-duplicated.
+    pi = d.get("personal_info", {})
+    labels = {"email_address": "Email addresses", "phone": "Phone numbers",
+              "date_of_birth": "Dates of birth", "mailing_address": "Mailing addresses"}
+    pi_html = ""
+    for kind in ("email_address", "phone", "mailing_address", "date_of_birth"):
+        items = pi.get(kind) or []
+        if not items:
+            continue
+        lis = "".join(
+            f"<li><code>{escape(str(it['value']))}</code>"
+            + (f" <span class='muted'>×{it['count']}</span>" if it['count'] > 1 else "")
+            + "</li>" for it in items)
+        pi_html += f"<h3>{escape(labels.get(kind, kind))} <span class='badge'>{len(items)}</span></h3><ul>{lis}</ul>"
+    if not pi_html:
+        pi_html = ("<p class='muted'>No name/phone/address/DOB detected in this "
+                   "inbox.</p>")
+
     # Attachments / pictures
     att_html = ""
     for rel in d.get("attachments_saved", []):
@@ -500,6 +518,11 @@ def profile(folder):
     {scanned_n} messages scanned ·
     <a href="{url_for('serve_file', folder=folder, path='report.md')}">raw report.md</a></p>
     {banner}
+
+    <h2>Personal info found <span class="badge">{d.get('personal_info_count',0)}</span></h2>
+    <p class="muted">Contact &amp; identity details that appear in this inbox.
+    Remove or secure anything you don't want stored in email.</p>
+    {pi_html}
 
     <h2>Services &amp; accounts <span class="badge">{d.get('service_count',0)}</span></h2>
     {svc_html}
