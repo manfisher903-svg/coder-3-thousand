@@ -15,7 +15,7 @@ from .report import Inventory, write_reports
 
 
 def _print_banner() -> None:
-    print("Personal Info Scanner — local, read-only. Nothing leaves this machine.\n",
+    print("SpeedRunner — local, read-only. Nothing leaves this machine.\n",
           file=sys.stderr)
 
 

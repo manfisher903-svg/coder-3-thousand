@@ -1,4 +1,6 @@
-# Personal Info Scanner
+# SpeedRunner
+
+_(a.k.a. Personal Info Scanner)_
 
 A **local-only** tool that scans your own email and files to build an
 **inventory** of your personal information: which stores and services you have
