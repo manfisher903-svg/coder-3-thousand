@@ -53,6 +53,10 @@ In the app you can:
 - **Search everything** — one box searches every scanned account's services and
   findings at once (a store name, "card", "password", part of your address…)
   and links each hit to the account it came from.
+- **Master view** — all accounts merged into one page: every service
+  de-duplicated (with which inboxes it appeared in) and every sensitive finding
+  in one table sorted by risk, with a stats row (accounts / services / findings
+  / high-risk).
 - **Open each account's profile** to see its services, all findings (shown in
   full), and the actual **pictures/files** it saved, right on the page.
 - **Recover access** — a page with the official password-reset link for each of

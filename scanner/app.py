@@ -108,8 +108,8 @@ padding-top:10px}}
 <canvas id="matrix"></canvas>
 <header>
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
-<a href="/">▸ accounts</a><a href="/search">▸ search</a>
-<a href="/recover">▸ recover</a>
+<a href="/">▸ accounts</a><a href="/master">▸ master</a>
+<a href="/search">▸ search</a><a href="/recover">▸ recover</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -421,6 +421,84 @@ def _all_reports():
             except Exception:
                 continue
             yield (d.get("account") or folder, folder, d)
+
+
+@app.route("/master")
+def master():
+    accounts_seen = 0
+    # Merge services across accounts, keyed by brand.
+    services = {}   # key -> {brand, categories:set, accounts:set, messages:int}
+    findings = []   # flattened, each tagged with its account
+    sev_rank = {"high": 0, "medium": 1, "low": 2}
+
+    for email, folder, d in _all_reports():
+        accounts_seen += 1
+        for cat, entries in (d.get("services_by_category") or {}).items():
+            for e in entries:
+                key = (e.get("brand") or "").lower() or f"{cat}:{id(e)}"
+                s = services.setdefault(key, {"brand": e.get("brand", "?"),
+                                              "categories": set(), "accounts": set(),
+                                              "messages": 0})
+                s["categories"].add(cat)
+                s["accounts"].add(email)
+                s["messages"] += e.get("message_count", 0)
+        for h in d.get("sensitive_findings", []):
+            findings.append({**h, "account": email})
+
+    # Stats
+    high = sum(1 for f in findings if f.get("severity") == "high")
+    stats = (f'<div class="card" style="display:flex;gap:26px;flex-wrap:wrap">'
+             f'<div><div class="badge">accounts</div><h2 style="margin:.2em 0">{accounts_seen}</h2></div>'
+             f'<div><div class="badge">services</div><h2 style="margin:.2em 0">{len(services)}</h2></div>'
+             f'<div><div class="badge">findings</div><h2 style="margin:.2em 0">{len(findings)}</h2></div>'
+             f'<div><div class="badge">high-risk</div><h2 style="margin:.2em 0;color:var(--red)">{high}</h2></div>'
+             f'</div>')
+
+    if accounts_seen == 0:
+        return render("Master", "<h1>Master view</h1>" + stats +
+                      '<p class="muted">No scanned accounts yet. Add accounts and '
+                      'run a scan first.</p>')
+
+    # Services table (sorted by how many accounts use them, then name)
+    svc_rows = ""
+    for s in sorted(services.values(),
+                    key=lambda v: (-len(v["accounts"]), v["brand"].lower())):
+        accts = ", ".join(sorted(s["accounts"]))
+        cats = ", ".join(sorted(s["categories"]))
+        svc_rows += (f"<tr><td><b>{escape(s['brand'])}</b></td>"
+                     f"<td>{escape(cats)}</td>"
+                     f"<td>{s['messages']}</td>"
+                     f"<td class='muted'>{escape(accts)}</td></tr>")
+    svc_table = (f"<table><tr><th>Service</th><th>Category</th><th>Msgs</th>"
+                 f"<th>Found in account(s)</th></tr>{svc_rows}</table>")
+
+    # Findings table (sorted by severity)
+    findings.sort(key=lambda f: sev_rank.get(f.get("severity"), 9))
+    find_rows = ""
+    for f in findings:
+        color = {"high": "var(--red)", "medium": "var(--amber)"}.get(
+            f.get("severity"), "var(--grn2)")
+        find_rows += (f"<tr><td style='color:{color}'>{escape(f.get('severity','').upper())}</td>"
+                      f"<td>{escape(f.get('kind',''))}</td>"
+                      f"<td><code>{escape(str(f.get('value','')))}</code></td>"
+                      f"<td>{escape(f.get('account',''))}</td>"
+                      f"<td class='muted'>{escape(f.get('location',''))}</td></tr>")
+    find_table = (f"<table><tr><th>Severity</th><th>Type</th><th>Value</th>"
+                  f"<th>Account</th><th>Where</th></tr>{find_rows}</table>"
+                  if find_rows else "<p class='muted'>No sensitive items found.</p>")
+
+    body = f"""
+    <h1>Master view — everything in one place</h1>
+    {stats}
+    <h2>All services &amp; accounts ({len(services)})</h2>
+    <p class="muted">Merged across every email. "Found in account(s)" shows which
+    inbox each service appeared in — handy for spotting the same store across
+    multiple emails.</p>
+    {svc_table}
+    <h2>All sensitive findings ({len(findings)})</h2>
+    {find_table}
+    """
+    return render("Master", body)
 
 
 @app.route("/search")
