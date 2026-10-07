@@ -160,12 +160,15 @@ def render(title: str, body: str) -> str:
 
 
 def _load_base_config() -> Config:
+    # Start from config.yaml if present (for encryption passphrase etc.), but the
+    # APP always scans everything — a stale config.yaml can't limit it. (Power
+    # users who want to limit the scope can use the command-line `scan` instead.)
+    cfg = Config()
     if os.path.exists("config.yaml"):
         try:
-            return Config.load("config.yaml")
+            cfg = Config.load("config.yaml")
         except Exception:
-            pass
-    cfg = Config()
+            cfg = Config()
     cfg.output.detail = "full"
     cfg.output.save_attachments = True
     cfg.email.since_days = 0        # all time, not just the last 2 years
