@@ -250,8 +250,11 @@ def index():
     </div>
 
     <p><a href="/export">⇩ Export what you choose →</a> &nbsp;
-    <span class="muted">Most providers need an <b>app password</b>. Credentials
-    live in {escape(ACCOUNTS_PATH)} — keep it private.</span></p>
+    <form method="post" action="/update" style="display:inline"
+      onsubmit="return confirm('Download and install the latest version? Your accounts and scans are kept.')">
+      <button class="secondary">⟳ Update app</button></form>
+    &nbsp;<span class="muted">Most providers need an <b>app password</b>.
+    Credentials live in {escape(ACCOUNTS_PATH)} — keep it private.</span></p>
 
     <script>
     function bar(a){{
@@ -674,6 +677,24 @@ def recover():
     manager and turn on two-factor authentication.</p>
     """
     return render("Recover access", body)
+
+
+@app.route("/update", methods=["POST"])
+def update_app():
+    from .update import update
+    ok, msg = update()
+    note = ("Restart the app (close this window / press Ctrl+C in the black "
+            "window, then open it again) to use the new version."
+            if ok and "Updated" in msg else "")
+    color = "var(--grn)" if ok else "var(--red)"
+    body = f"""
+    <h1>Update</h1>
+    <div class="card">
+      <p style="color:{color}">{escape(msg)}</p>
+      <p class="muted">{escape(note)}</p>
+      <p><a href="/">← back to accounts</a></p>
+    </div>"""
+    return render("Update", body)
 
 
 @app.route("/export")

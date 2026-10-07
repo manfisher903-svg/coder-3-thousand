@@ -54,6 +54,10 @@ In the app you can:
 - **Export** — pick exactly which accounts and what to include (services CSV,
   findings CSV, pictures/files, full reports, combined CSVs) and download it all
   as one `.zip`.
+- **Update in one click** — the launch scripts auto-update to the latest version
+  on start, and there's an **⟳ Update app** button in the app. Both pull fresh
+  code from GitHub (no Git or ZIP needed) and **keep your accounts and scans**.
+  Or run it manually: `python -m scanner.update`.
 - **Search everything** — one box searches every scanned account's services and
   findings at once (a store name, "card", "password", part of your address…)
   and links each hit to the account it came from.
