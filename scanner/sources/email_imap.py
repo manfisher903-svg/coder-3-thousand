@@ -112,6 +112,7 @@ def _strip_html(html: str) -> str:
 class EmailSource:
     def __init__(self, cfg: EmailConfig):
         self.cfg = cfg
+        self.total = None  # set once the mailbox is searched
         self._resolve_server()
 
     def _resolve_server(self) -> None:
@@ -154,6 +155,9 @@ class EmailSource:
             ids = data[0].split()
             if self.cfg.max_messages:
                 ids = ids[-self.cfg.max_messages:]  # most recent N
+
+            # Expose the total so callers can show a progress bar / ETA.
+            self.total = len(ids)
 
             for msg_id in reversed(ids):  # newest first
                 typ, msg_data = conn.fetch(msg_id, "(RFC822)")

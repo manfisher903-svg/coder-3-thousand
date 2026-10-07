@@ -18,8 +18,8 @@ import threading
 import webbrowser
 from html import escape
 
-from flask import (Flask, abort, redirect, request, send_from_directory,
-                   url_for)
+from flask import (Flask, abort, redirect, request, send_file,
+                   send_from_directory, url_for)
 
 from .accounts import (add_or_update, delete_account, load_accounts,
                        save_accounts)
@@ -31,8 +31,31 @@ OUTPUT_DIR = os.environ.get("PIS_OUTPUT", "inventory")
 app = Flask(__name__)
 
 # Scan progress state (single run at a time).
-_scan_state = {"running": False, "log": [], "summaries": []}
+# accounts: email -> {done,total,status,started,services,findings}
+_scan_state = {"running": False, "accounts": {}, "order": []}
 _scan_lock = threading.Lock()
+
+
+def _progress_event(ev: dict) -> None:
+    """Update shared scan state from a batch progress event."""
+    import time
+    with _scan_lock:
+        accts = _scan_state["accounts"]
+        email = ev.get("email")
+        kind = ev.get("event")
+        if email and email not in accts:
+            accts[email] = {"done": 0, "total": None, "status": "pending",
+                            "started": None, "services": 0, "findings": 0}
+            _scan_state["order"].append(email)
+        if kind == "start":
+            accts[email].update(status="scanning", started=time.time())
+        elif kind == "progress":
+            accts[email].update(done=ev.get("done", 0), total=ev.get("total"),
+                                status="scanning")
+        elif kind == "done":
+            accts[email].update(status=ev.get("status", "ok"),
+                                services=ev.get("services", 0),
+                                findings=ev.get("sensitive", 0))
 
 
 # --- tiny HTML helpers ----------------------------------------------------
@@ -109,7 +132,8 @@ padding-top:10px}}
 <header>
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
-<a href="/search">▸ search</a><a href="/recover">▸ recover</a>
+<a href="/search">▸ search</a><a href="/export">▸ export</a>
+<a href="/recover">▸ recover</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -160,7 +184,6 @@ def index():
 
     with _scan_lock:
         running = _scan_state["running"]
-        log = list(_scan_state["log"])[-12:]
 
     rows = ""
     for a in accounts:
@@ -202,13 +225,8 @@ def index():
     if not rows:
         rows = '<tr><td colspan="3" class="muted">No accounts yet — add one below.</td></tr>'
 
-    scan_box = (
-        '<p class="warn">Scanning… this can take a few minutes per account.</p>'
-        if running else
-        '<form method="post" action="/scan"><button>Scan all accounts</button></form>')
-    log_html = ""
-    if log:
-        log_html = "<pre class='card'>" + escape("\n".join(log)) + "</pre>"
+    scan_btn = ('<button id="scanbtn" %s>Scan all accounts</button>'
+                % ("disabled" if running else ""))
 
     body = f"""
     <h1>Your email accounts</h1>
@@ -227,13 +245,71 @@ def index():
     <div class="card"><h2>Scan</h2>
     <p class="muted">Reads each inbox read-only and builds a profile with
     everything found — services, sensitive items, and saved files/pictures.</p>
-    {scan_box}{log_html}
+    <form method="post" action="/scan" onsubmit="setTimeout(poll,400)">{scan_btn}</form>
+    <div id="progress" style="margin-top:12px"></div>
     </div>
-    <p class="muted">Most providers need an <b>app password</b> (not your normal
-    login). Each account's password lives in {escape(ACCOUNTS_PATH)} — keep it
-    private.</p>
+
+    <p><a href="/export">⇩ Export what you choose →</a> &nbsp;
+    <span class="muted">Most providers need an <b>app password</b>. Credentials
+    live in {escape(ACCOUNTS_PATH)} — keep it private.</span></p>
+
+    <script>
+    function bar(a){{
+      var pct = a.total ? Math.min(100, Math.round(100*a.done/a.total)) : (a.status==='scanning'?3:0);
+      var eta = '';
+      if(a.eta_s!=null && a.status==='scanning'){{
+        var m=Math.floor(a.eta_s/60), s=Math.round(a.eta_s%60);
+        eta = ' · ETA '+(m>0?m+'m ':'')+s+'s';
+      }}
+      var col = a.status && a.status.indexOf('failed')===0 ? 'var(--red)' :
+                (a.status==='scanning'?'var(--amber)':'var(--grn)');
+      var label = a.status && a.status.indexOf('failed')===0 ? a.status :
+          (a.status==='scanning'
+             ? (a.total? a.done+'/'+a.total+' msgs ('+pct+'%)'+eta : 'connecting…')
+             : (a.status==='pending'?'queued':'done · '+a.services+' services, '+a.findings+' findings'));
+      return '<div style="margin:8px 0"><div style="display:flex;justify-content:space-between">'
+        +'<b>'+a.email+'</b><span class="muted">'+label+'</span></div>'
+        +'<div style="height:12px;border:1px solid var(--grn2);border-radius:7px;overflow:hidden;background:#02110b">'
+        +'<div style="height:100%;width:'+pct+'%;background:'+col+';box-shadow:0 0 10px '+col+';transition:width .4s"></div>'
+        +'</div></div>';
+    }}
+    function poll(){{
+      fetch('/scan/status').then(function(r){{return r.json()}}).then(function(d){{
+        var el=document.getElementById('progress');
+        if(!d.accounts.length){{el.innerHTML='';}}
+        else{{el.innerHTML='<div class="card">'+d.accounts.map(bar).join('')+'</div>';}}
+        var btn=document.getElementById('scanbtn'); if(btn) btn.disabled=d.running;
+        if(d.running) setTimeout(poll,1000);
+        else if(d.accounts.length) setTimeout(function(){{location.reload()}},1200);
+      }}).catch(function(){{}});
+    }}
+    if({str(running).lower()}) poll();
+    </script>
     """
     return render("Accounts", body)
+
+
+@app.route("/scan/status")
+def scan_status():
+    import time
+    from flask import jsonify
+    with _scan_lock:
+        running = _scan_state["running"]
+        out = []
+        for email in _scan_state["order"]:
+            a = dict(_scan_state["accounts"][email])
+            a["email"] = email
+            eta = None
+            if (a["status"] == "scanning" and a.get("total") and a.get("done")
+                    and a.get("started")):
+                elapsed = max(0.001, time.time() - a["started"])
+                rate = a["done"] / elapsed            # msgs/sec
+                if rate > 0:
+                    eta = max(0, (a["total"] - a["done"]) / rate)
+            a["eta_s"] = eta
+            a.pop("started", None)
+            out.append(a)
+    return jsonify({"running": running, "accounts": out})
 
 
 @app.route("/accounts/add", methods=["POST"])
@@ -278,10 +354,7 @@ def _run_scan(only_email: str = None):
     from .batch import run_batch, scan_one, write_index
 
     base = _load_base_config()
-
-    def progress(msg):
-        with _scan_lock:
-            _scan_state["log"].append(msg)
+    progress = _progress_event
 
     try:
         if only_email:
@@ -317,7 +390,8 @@ def rescan_account():
     with _scan_lock:
         if not _scan_state["running"] and email:
             _scan_state["running"] = True
-            _scan_state["log"] = [f"Re-scanning {email}…"]
+            _scan_state["accounts"] = {}
+            _scan_state["order"] = []
             threading.Thread(target=_run_scan, kwargs={"only_email": email},
                              daemon=True).start()
     return redirect(url_for("index"))
@@ -328,7 +402,8 @@ def scan():
     with _scan_lock:
         if not _scan_state["running"]:
             _scan_state["running"] = True
-            _scan_state["log"] = []
+            _scan_state["accounts"] = {}
+            _scan_state["order"] = []
             threading.Thread(target=_run_scan, daemon=True).start()
     return redirect(url_for("index"))
 
@@ -599,6 +674,115 @@ def recover():
     manager and turn on two-factor authentication.</p>
     """
     return render("Recover access", body)
+
+
+@app.route("/export")
+def export_page():
+    accts = [(email, folder) for email, folder, _d in _all_reports()]
+    if not accts:
+        return render("Export", "<h1>Export</h1>"
+                      "<p class='muted'>Nothing to export yet — scan some "
+                      "accounts first.</p>")
+    checks = ""
+    for email, folder in accts:
+        checks += (f'<label style="display:block;margin:4px 0">'
+                   f'<input type="checkbox" name="acct" value="{escape(folder)}" checked> '
+                   f'{escape(email)}</label>')
+    body = f"""
+    <h1>Export</h1>
+    <p class="muted">Pick exactly what you want to take out. You'll get one
+    <code>.zip</code> file with your choices.</p>
+    <form method="post" action="/export/download">
+      <div class="card"><h2>Accounts</h2>{checks}</div>
+      <div class="card"><h2>What to include</h2>
+        <label style="display:block"><input type="checkbox" name="inc" value="services" checked> Services list (CSV)</label>
+        <label style="display:block"><input type="checkbox" name="inc" value="findings" checked> Sensitive findings (CSV)</label>
+        <label style="display:block"><input type="checkbox" name="inc" value="attachments" checked> Pictures &amp; files</label>
+        <label style="display:block"><input type="checkbox" name="inc" value="reports"> Full reports (report.md + report.json)</label>
+        <label style="display:block;margin-top:6px"><input type="checkbox" name="inc" value="combined" checked> Combined CSVs across all chosen accounts</label>
+      </div>
+      <button>⇩ Build &amp; download ZIP</button>
+    </form>
+    <p class="muted">The ZIP can contain real personal info and images — save it
+    somewhere safe and delete it when you're done.</p>
+    """
+    return render("Export", body)
+
+
+def _services_rows(d):
+    rows = [("brand", "category", "domains", "messages")]
+    for cat, entries in (d.get("services_by_category") or {}).items():
+        for e in entries:
+            rows.append((e.get("brand", ""), cat,
+                         " ".join(e.get("domains", [])), e.get("message_count", 0)))
+    return rows
+
+
+def _findings_rows(d):
+    rows = [("severity", "type", "value", "where", "advice")]
+    for h in d.get("sensitive_findings", []):
+        rows.append((h.get("severity", ""), h.get("kind", ""), h.get("value", ""),
+                     h.get("location", ""), h.get("advice", "")))
+    return rows
+
+
+def _csv_bytes(rows):
+    import csv
+    import io
+    buf = io.StringIO()
+    csv.writer(buf).writerows(rows)
+    return buf.getvalue().encode("utf-8")
+
+
+@app.route("/export/download", methods=["POST"])
+def export_download():
+    import io
+    import zipfile
+
+    chosen = set(request.form.getlist("acct"))
+    include = set(request.form.getlist("inc"))
+    if not chosen or not include:
+        return redirect(url_for("export_page"))
+
+    mem = io.BytesIO()
+    combined_find = [("account", "severity", "type", "value", "where")]
+    combined_svc = [("account", "brand", "category", "domains", "messages")]
+
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        for email, folder, d in _all_reports():
+            if folder not in chosen:
+                continue
+            acct_dir = os.path.join(OUTPUT_DIR, folder)
+
+            if "services" in include:
+                z.writestr(f"{folder}/services.csv", _csv_bytes(_services_rows(d)))
+            if "findings" in include:
+                z.writestr(f"{folder}/findings.csv", _csv_bytes(_findings_rows(d)))
+            if "reports" in include:
+                for fn in ("report.md", "report.json"):
+                    fp = os.path.join(acct_dir, fn)
+                    if os.path.isfile(fp):
+                        z.write(fp, f"{folder}/{fn}")
+            if "attachments" in include:
+                att_dir = os.path.join(acct_dir, "attachments")
+                if os.path.isdir(att_dir):
+                    for name in os.listdir(att_dir):
+                        fp = os.path.join(att_dir, name)
+                        if os.path.isfile(fp):
+                            z.write(fp, f"{folder}/attachments/{name}")
+            if "combined" in include:
+                for r in _findings_rows(d)[1:]:
+                    combined_find.append((email, r[0], r[1], r[2], r[3]))
+                for r in _services_rows(d)[1:]:
+                    combined_svc.append((email, r[0], r[1], r[2], r[3]))
+
+        if "combined" in include:
+            z.writestr("all_findings.csv", _csv_bytes(combined_find))
+            z.writestr("all_services.csv", _csv_bytes(combined_svc))
+
+    mem.seek(0)
+    return send_file(mem, mimetype="application/zip", as_attachment=True,
+                     download_name="speedrunner_export.zip")
 
 
 def main():

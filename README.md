@@ -49,7 +49,11 @@ In the app you can:
 - **Manage accounts** — add with a form, **edit** an email/password in place,
   **delete** an account (its scan folder is removed too), and **re-scan a single
   account** without redoing the others.
-- **Scan all accounts** with one button.
+- **Scan all accounts** with one button, watching a **live progress bar per
+  email** (messages done / total, percent, and an ETA for each account).
+- **Export** — pick exactly which accounts and what to include (services CSV,
+  findings CSV, pictures/files, full reports, combined CSVs) and download it all
+  as one `.zip`.
 - **Search everything** — one box searches every scanned account's services and
   findings at once (a store name, "card", "password", part of your address…)
   and links each hit to the account it came from.

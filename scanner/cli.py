@@ -197,8 +197,21 @@ def cmd_scan_all(args) -> int:
     print(accounts_file_warning(args.accounts), file=sys.stderr)
     print(f"Scanning {len(accounts)} account(s)…\n", file=sys.stderr)
 
+    def on_event(ev):
+        kind = ev.get("event")
+        if kind == "account":
+            print(f"  [{ev['index']}/{ev['total_accounts']}] {ev['email']}",
+                  file=sys.stderr)
+        elif kind == "progress" and ev.get("total"):
+            print(f"    {ev['email']}: {ev['done']}/{ev['total']} messages",
+                  file=sys.stderr, end="\r")
+        elif kind == "done":
+            print(f"\n    {ev['email']}: {ev['status']} "
+                  f"({ev['services']} services, {ev['sensitive']} findings)",
+                  file=sys.stderr)
+
     summaries = run_batch(args.accounts, base, base.output.directory,
-                          progress=lambda m: print(f"  {m}", file=sys.stderr))
+                          progress=on_event)
 
     ok = sum(1 for s in summaries if s["status"] == "ok")
     print(f"\nDone. {ok}/{len(summaries)} account(s) scanned cleanly.", file=sys.stderr)

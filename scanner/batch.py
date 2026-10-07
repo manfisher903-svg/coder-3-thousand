@@ -10,12 +10,19 @@ from .accounts import Account, load_accounts
 from .config import Config, EmailConfig
 from .report import Inventory, write_reports
 
-ProgressFn = Optional[Callable[[str], None]]
+# A progress callback receives structured event dicts, e.g.
+#   {"event":"start","email":..}
+#   {"event":"progress","email":..,"done":k,"total":T}
+#   {"event":"done","email":..,"status":..,"services":..,"findings":..}
+ProgressFn = Optional[Callable[[dict], None]]
 
 
-def _emit(cb: ProgressFn, msg: str) -> None:
+def _emit(cb: ProgressFn, **event) -> None:
     if cb:
-        cb(msg)
+        try:
+            cb(event)
+        except Exception:
+            pass
 
 
 def scan_one(account: Account, base: Config, out_dir: str,
@@ -37,12 +44,9 @@ def scan_one(account: Account, base: Config, out_dir: str,
     )
     inv = Inventory(detail=base.output.detail, account=account.email)
     status = "ok"
+    _emit(progress, event="start", email=account.email)
     try:
         src = EmailSource(email_cfg)
-        detected = getattr(src, "detected", None)
-        if detected is not None:
-            _emit(progress, f"{account.email}: using {detected.host} "
-                            f"({detected.security})")
         count = 0
         for rec in src.iter_messages():
             count += 1
@@ -67,13 +71,15 @@ def scan_one(account: Account, base: Config, out_dir: str,
                         inv.attachments.append(os.path.relpath(dest, out_dir))
                     except OSError:
                         pass
-            if count % 250 == 0:
-                _emit(progress, f"{account.email}: {count} messages…")
+            # Report progress often enough for a smooth bar, cheaply.
+            if count == 1 or count % 10 == 0:
+                _emit(progress, event="progress", email=account.email,
+                      done=count, total=src.total)
         inv.sources_scanned += count
-        _emit(progress, f"{account.email}: {count} messages scanned")
+        _emit(progress, event="progress", email=account.email,
+              done=count, total=count)
     except Exception as exc:  # noqa: BLE001
         status = f"failed: {exc}"
-        _emit(progress, f"{account.email}: {status}")
 
     write_reports(inv, out_dir)
     if base.output.encrypt_passphrase:
@@ -85,13 +91,15 @@ def scan_one(account: Account, base: Config, out_dir: str,
         except Exception:  # noqa: BLE001
             pass
 
-    return {
+    summary = {
         "email": account.email,
         "folder": account.safe_name(),
         "services": len(inv.services),
         "sensitive": len(inv.sensitive),
         "status": status,
     }
+    _emit(progress, event="done", **summary)
+    return summary
 
 
 def run_batch(accounts_path: str, base: Config, out_root: str,
@@ -105,7 +113,8 @@ def run_batch(accounts_path: str, base: Config, out_root: str,
 
     summaries: List[dict] = []
     for i, acct in enumerate(accounts, 1):
-        _emit(progress, f"[{i}/{len(accounts)}] {acct.email}")
+        _emit(progress, event="account", index=i, total_accounts=len(accounts),
+              email=acct.email)
         acct_dir = os.path.join(out_root, acct.safe_name())
         acct_base = copy.deepcopy(base)
         summaries.append(scan_one(acct, acct_base, acct_dir, progress))
