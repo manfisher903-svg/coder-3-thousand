@@ -1,0 +1,24 @@
+# List of YOUR OWN email accounts to scan in batch.
+# Copy to accounts.yaml and fill in. NEVER commit accounts.yaml — it holds
+# your passwords. It is git-ignored by default. Delete it when you're done,
+# or set output.encrypt_passphrase in config.yaml to encrypt the reports.
+#
+# Most providers need an APP PASSWORD (not your normal login). host is
+# optional — it is auto-detected from each address.
+
+accounts:
+  - email: you@gmail.com
+    password: "your-app-password"
+
+  - email: you@yahoo.com
+    password: "your-app-password"
+    mailbox: "INBOX"          # optional; default is INBOX
+
+  - email: you@netzero.net
+    password: "your-password"
+    # host: imap.netzero.net  # optional manual override if auto-detect fails
+
+# --- You can also use a plain text file instead of YAML, one per line: ---
+#   you@gmail.com,your-app-password
+#   you@yahoo.com | your-app-password | INBOX
+# Pass it with:  python -m scanner.cli scan-all --accounts myaccounts.txt

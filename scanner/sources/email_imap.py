@@ -106,12 +106,14 @@ class EmailSource:
         self.cfg.security = server.security
         self.detected = server  # for the CLI to report what it found
 
-    def _connect(self) -> imaplib.IMAP4:
+    def _connect(self, timeout: float = 30.0) -> imaplib.IMAP4:
+        # A timeout keeps an unreachable server from hanging forever — important
+        # in batch mode so one bad account can't stall the whole run.
         if self.cfg.security == "starttls":
-            conn = imaplib.IMAP4(self.cfg.host, self.cfg.port)
+            conn = imaplib.IMAP4(self.cfg.host, self.cfg.port, timeout=timeout)
             conn.starttls()
             return conn
-        return imaplib.IMAP4_SSL(self.cfg.host, self.cfg.port)
+        return imaplib.IMAP4_SSL(self.cfg.host, self.cfg.port, timeout=timeout)
 
     def _search_criteria(self) -> str:
         if self.cfg.since_days and self.cfg.since_days > 0:

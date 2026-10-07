@@ -155,6 +155,116 @@ def cmd_scan(args) -> int:
     return 0
 
 
+def cmd_scan_all(args) -> int:
+    """Scan many accounts from a credentials file; one report folder each."""
+    import copy
+
+    from .accounts import accounts_file_warning, load_accounts
+    from .config import Config, EmailConfig
+
+    _print_banner()
+
+    # A base config supplies defaults (detail level, since_days, encryption…).
+    if args.config and os.path.exists(args.config):
+        base = Config.load(args.config)
+    else:
+        base = Config()
+    if args.output:
+        base.output.directory = args.output
+    if args.detail:
+        base.output.detail = args.detail
+    if args.save_attachments:
+        base.output.save_attachments = True
+
+    try:
+        accounts = load_accounts(args.accounts)
+    except FileNotFoundError:
+        print(f"Accounts file not found: {args.accounts}", file=sys.stderr)
+        return 2
+    if not accounts:
+        print(f"No accounts found in {args.accounts}.", file=sys.stderr)
+        return 2
+
+    print(accounts_file_warning(args.accounts), file=sys.stderr)
+    print(f"Scanning {len(accounts)} account(s)…\n", file=sys.stderr)
+
+    out_root = base.output.directory
+    os.makedirs(out_root, exist_ok=True)
+    try:
+        os.chmod(out_root, 0o700)
+    except OSError:
+        pass
+
+    summaries = []
+    for i, acct in enumerate(accounts, 1):
+        print(f"[{i}/{len(accounts)}] {acct.email}", file=sys.stderr)
+        acct_dir = os.path.join(out_root, acct.safe_name())
+
+        email_cfg = EmailConfig(
+            enabled=True,
+            host=acct.host or "",
+            username=acct.email,
+            password=acct.password,
+            mailbox=acct.mailbox or base.email.mailbox,
+            since_days=base.email.since_days,
+            max_messages=base.email.max_messages,
+        )
+        acct_cfg = copy.deepcopy(base)
+        acct_cfg.email = email_cfg
+        acct_cfg.output.directory = acct_dir
+
+        inv = Inventory(detail=acct_cfg.output.detail)
+        status = "ok"
+        try:
+            _scan_email(acct_cfg, inv, acct_cfg.output.save_attachments, acct_dir)
+        except Exception as exc:  # noqa: BLE001
+            status = f"failed: {exc}"
+            print(f"  -> {status}", file=sys.stderr)
+
+        written = write_reports(inv, acct_dir)
+        if acct_cfg.output.encrypt_passphrase:
+            try:
+                from .crypto_store import encrypt_bundle
+                encrypt_bundle(written, acct_dir, acct_cfg.output.encrypt_passphrase)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  encryption skipped: {exc}", file=sys.stderr)
+
+        summaries.append({
+            "email": acct.email,
+            "folder": acct.safe_name(),
+            "services": len(inv.services),
+            "sensitive": len(inv.sensitive),
+            "status": status,
+        })
+
+    _write_batch_index(out_root, summaries)
+    ok = sum(1 for s in summaries if s["status"] == "ok")
+    print(f"\nDone. {ok}/{len(summaries)} account(s) scanned cleanly.", file=sys.stderr)
+    print(f"Per-account reports under {out_root}/<address>/report.md", file=sys.stderr)
+    print(f"Overview: {os.path.join(out_root, 'index.md')}", file=sys.stderr)
+    return 0
+
+
+def _write_batch_index(out_root: str, summaries: list) -> None:
+    lines = ["# Personal Info — all accounts", ""]
+    lines.append(f"Scanned **{len(summaries)}** account(s). "
+                 "Each has its own folder with a `report.md`.\n")
+    lines.append("| Account | Services | Sensitive findings | Report | Status |")
+    lines.append("|---|---|---|---|---|")
+    for s in summaries:
+        report = f"[{s['folder']}/report.md]({s['folder']}/report.md)"
+        lines.append(f"| {s['email']} | {s['services']} | {s['sensitive']} | "
+                     f"{report} | {s['status']} |")
+    lines.append("")
+    path = os.path.join(out_root, "index.md")
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="personal-info-scanner",
@@ -171,6 +281,20 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--save-attachments", action="store_true",
                       help="Save attachments from personal-looking messages")
     scan.set_defaults(func=cmd_scan)
+
+    scan_all = sub.add_parser(
+        "scan-all",
+        help="Scan many accounts from a credentials file; one report each.")
+    scan_all.add_argument("--accounts", default="accounts.yaml",
+                          help="Path to the accounts file (email + password per account)")
+    scan_all.add_argument("--config", default="config.yaml",
+                          help="Optional base config for defaults (detail, since_days…)")
+    scan_all.add_argument("--output", help="Output directory root for all reports")
+    scan_all.add_argument("--detail", choices=["redact", "partial", "full"],
+                          help="How much of sensitive values to keep")
+    scan_all.add_argument("--save-attachments", action="store_true",
+                          help="Save attachments from personal-looking messages")
+    scan_all.set_defaults(func=cmd_scan_all)
 
     det = sub.add_parser("detectors", help="List categories and detectors.")
     det.set_defaults(func=cmd_detectors)

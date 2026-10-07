@@ -89,6 +89,37 @@ def test_provider_detection_unknown_offline_raises():
         pass
 
 
+def test_accounts_loader_yaml(tmp_path=None):
+    import tempfile
+    from scanner.accounts import load_accounts
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "a.yaml")
+    with open(p, "w") as fh:
+        fh.write("accounts:\n"
+                 "  - email: a@gmail.com\n    password: pw1\n"
+                 "  - email: b@yahoo.com\n    password: pw2\n    mailbox: INBOX\n")
+    accts = load_accounts(p)
+    assert [a.email for a in accts] == ["a@gmail.com", "b@yahoo.com"]
+    assert accts[0].password == "pw1"
+    assert accts[1].mailbox == "INBOX"
+    assert accts[0].safe_name() == "a_gmail.com"
+
+
+def test_accounts_loader_plain_and_dedup():
+    import tempfile
+    from scanner.accounts import load_accounts
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "a.txt")
+    with open(p, "w") as fh:
+        fh.write("# my accounts\n"
+                 "a@gmail.com,pw1\n"
+                 "b@yahoo.com | pw2 | INBOX\n"
+                 "a@gmail.com,dupe\n")  # duplicate dropped
+    accts = load_accounts(p)
+    assert [a.email for a in accts] == ["a@gmail.com", "b@yahoo.com"]
+    assert accts[1].password == "pw2" and accts[1].mailbox == "INBOX"
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

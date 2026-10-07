@@ -95,6 +95,35 @@ python -m scanner.cli detectors
 Open `inventory/report.md` (human-readable) or `inventory/report.json`
 (machine-readable) when it finishes.
 
+## Scanning many accounts at once (batch mode)
+
+If you have several email accounts, list them in one file and scan them all in
+one go — each account gets its own profile folder and report.
+
+```bash
+cp accounts.example.yaml accounts.yaml   # then fill in your accounts
+python -m scanner.cli scan-all --accounts accounts.yaml --output ./inventory
+```
+
+The accounts file can be YAML or plain lines (`email,password` per line). Each
+account needs its own app password. Output looks like:
+
+```
+inventory/
+  index.md                     # overview table of every account
+  you_at_gmail.com/report.md   # full profile for this account
+  you_at_yahoo.com/report.md
+  you_at_netzero.net/report.md
+```
+
+`index.md` is a summary table (accounts × services × findings) linking to each
+report. One account failing (wrong password, IMAP off) doesn't stop the rest —
+its status is shown in the table.
+
+> The accounts file contains your passwords. It is git-ignored, but keep it
+> private and delete it when done — or set `encrypt_passphrase` in `config.yaml`
+> to encrypt each account's report.
+
 ## What it produces
 
 - **Services & accounts index** — grouped by category (shopping, banking,

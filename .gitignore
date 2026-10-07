@@ -1,5 +1,10 @@
-# Never commit your real config (contains mail account) or any scan output.
+# Never commit your real config/credentials or any scan output.
 config.yaml
+accounts.yaml
+accounts.txt
+*accounts*.yaml
+*accounts*.txt
+!accounts.example.yaml
 inventory/
 *.pis
 report.json
