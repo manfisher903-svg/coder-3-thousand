@@ -56,7 +56,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
              progress: ProgressFn = None) -> dict:
     """Scan a single account into out_dir; return a summary dict."""
     from .classify import classify
-    from .patterns import scan_sensitive
+    from .patterns import IDENTITY_KINDS, scan_sensitive
     from .phishing import analyze_email
     from .sources.email_imap import EmailSource
     import re
@@ -82,27 +82,37 @@ def scan_one(account: Account, base: Config, out_dir: str,
             category, brand = classify(rec.sender_domain, rec.subject, rec.snippet)
             inv.add_service(brand, category, rec.sender_domain, rec.subject)
 
-            findings = scan_sensitive(f"{rec.subject}\n{rec.body_text}")
-            if findings:
-                inv.add_findings(findings, f"{rec.sender_email} — {rec.subject[:60]!r}")
-
-            # Owner-name candidates (how others address this account).
-            for nm in rec.to_names:
-                nm = nm.strip()
-                if nm and "@" not in nm:
-                    inv.name_counts[nm] = inv.name_counts.get(nm, 0) + 1
-
-            # Phishing / legitimacy check.
+            # Analyze legitimacy FIRST, then build the profile only from
+            # trustworthy mail so phishing/spoofed emails can't inject fake
+            # names, addresses, etc. into "your real details".
             v = analyze_email(rec.sender_email, rec.sender_name, rec.subject,
                               rec.body_text, reply_to=rec.reply_to,
                               auth_results=rec.auth_results,
                               attachment_names=rec.attachment_names)
-            if v.label != "legit":
+            is_legit = v.label == "legit"
+            if not is_legit:
                 inv.suspicious.append({
                     "from": rec.sender_email, "name": rec.sender_name,
                     "subject": rec.subject[:120], "verdict": v.label,
                     "score": v.score, "reasons": v.reasons,
                 })
+
+            loc = f"{rec.sender_email} — {rec.subject[:60]!r}"
+            findings = scan_sensitive(f"{rec.subject}\n{rec.body_text}")
+            # Security exposures (SSN, cards, keys…) count from ALL mail so you
+            # see everything leaking. Identity details that build the profile
+            # (name/email/phone/address/DOB) come only from legit emails.
+            security = [f for f in findings if f.kind not in IDENTITY_KINDS]
+            identity = [f for f in findings if f.kind in IDENTITY_KINDS]
+            if security:
+                inv.add_findings(security, loc)
+            if is_legit:
+                if identity:
+                    inv.add_findings(identity, loc)
+                for nm in rec.to_names:
+                    nm = nm.strip()
+                    if nm and "@" not in nm:
+                        inv.name_counts[nm] = inv.name_counts.get(nm, 0) + 1
 
             if base.output.save_attachments and rec.attachments and (
                     findings or category != "other"):

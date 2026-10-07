@@ -54,11 +54,13 @@ In the app you can:
 - **Export** — pick exactly which accounts and what to include (services CSV,
   findings CSV, pictures/files, full reports, combined CSVs) and download it all
   as one `.zip`.
-- **Email legitimacy / phishing check** — every scanned email is scored for
-  phishing/spoofing signals (brand impersonation, Reply-To mismatch, failed
-  SPF/DKIM/DMARC, urgency + credential-request wording, look-alike or IP-address
-  links, risky attachments), and flagged ones show up on the profile with the
-  reasons. The **Analyze** tab lets you paste any single email for a verdict.
+- **Email legitimacy / phishing check (automatic)** — during the scan, every
+  email is scored for phishing/spoofing signals (brand impersonation, Reply-To
+  mismatch, failed SPF/DKIM/DMARC, urgency + credential-request wording,
+  look-alike or IP-address links, risky attachments). Flagged ones show on the
+  profile with reasons, and — importantly — their contents are **excluded from
+  your "real details" profile**, so spoofed/scam emails can't inject fake names
+  or addresses.
 - **Best guess — your real details** — instead of a pile of candidates, the
   profile shows the most consistently-seen name, email, phone, home address and
   DOB first (ranked by how often each appears).

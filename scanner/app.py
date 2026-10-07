@@ -132,8 +132,8 @@ padding-top:10px}}
 <header>
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
-<a href="/search">▸ search</a><a href="/analyze">▸ analyze</a>
-<a href="/export">▸ export</a><a href="/recover">▸ recover</a>
+<a href="/search">▸ search</a><a href="/export">▸ export</a>
+<a href="/recover">▸ recover</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -577,8 +577,9 @@ def profile(folder):
     {bg_html}
 
     <h2>Email legitimacy <span class="badge">{d.get('suspicious_count',0)}</span></h2>
-    <p class="muted">Emails that look like phishing or spoofing, with the reasons.
-    <a href="/analyze">Analyze a specific email →</a></p>
+    <p class="muted">Every email was checked during the scan. These looked like
+    phishing or spoofing — and their info was <b>excluded</b> from your profile
+    below so fakes don't pollute it.</p>
     {susp_html}
 
     <h2>Personal info found <span class="badge">{d.get('personal_info_count',0)}</span></h2>

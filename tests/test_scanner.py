@@ -234,6 +234,45 @@ def test_best_guess_picks_most_frequent():
     assert d["best_guess"]["address"]["count"] == 2
 
 
+def test_profile_uses_only_legit_mail():
+    import tempfile, json
+    import scanner.sources.email_imap as es
+    from scanner.sources.email_imap import MessageRecord
+    from scanner.config import Config
+    from scanner.accounts import Account
+    import scanner.batch as batch
+
+    class FakeSource:
+        def __init__(self, cfg):
+            self.cfg = cfg; self.cfg.protocol = "imap"; self.total = 2
+        def iter_messages(self):
+            yield MessageRecord("1", None, "Amazon", "ship@amazon.com", "amazon.com",
+                                "Your order shipped",
+                                "Shipping to 500 Real Home St.",
+                                auth_results="spf=pass", to_names=["Chris Martinez"])
+            yield MessageRecord("2", None, "PayPal", "paypal@scammer.ru", "scammer.ru",
+                                "Verify your account now",
+                                "Urgent verify your account enter your password "
+                                "http://1.2.3.4/x office 999 Fake Scam Ave.",
+                                reply_to="x@evil.ru", auth_results="spf=fail",
+                                to_names=["Victim Name"])
+
+    orig = es.EmailSource
+    es.EmailSource = FakeSource
+    try:
+        out = tempfile.mkdtemp()
+        batch.scan_one(Account(email="me@test.com", password="x"), Config(), out)
+        d = json.load(open(os.path.join(out, "report.json")))
+    finally:
+        es.EmailSource = orig
+
+    assert d["suspicious_count"] == 1
+    addrs = [a["value"] for a in d["personal_info"].get("mailing_address", [])]
+    assert any("Real Home" in a for a in addrs)
+    assert not any("Fake Scam" in a for a in addrs)  # phishing info excluded
+    assert d["best_guess"]["name"]["value"] == "Chris Martinez"
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")
