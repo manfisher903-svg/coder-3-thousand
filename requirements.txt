@@ -1,0 +1,4 @@
+PyYAML>=6.0
+# Standard library covers imaplib, email, re, etc.
+# Optional: install `cryptography` if you want encrypted output.
+cryptography>=41.0

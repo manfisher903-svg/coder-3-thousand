@@ -1,0 +1,14 @@
+# Never commit your real config (contains mail account) or any scan output.
+config.yaml
+inventory/
+*.pis
+report.json
+report.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/

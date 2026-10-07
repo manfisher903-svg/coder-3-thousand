@@ -1,0 +1,33 @@
+# Personal Info Scanner — example configuration.
+# Copy to config.yaml and edit. Never commit your real config.yaml.
+
+email:
+  enabled: true
+  host: imap.gmail.com          # your provider's IMAP host
+  port: 993
+  username: you@example.com
+  # Prefer the PIS_EMAIL_PASSWORD env var over putting the password here.
+  # For Gmail and most providers this must be an APP PASSWORD, not your login.
+  password: ""
+  mailbox: "INBOX"              # or "[Gmail]/All Mail" to scan everything
+  # Only look at mail newer than this many days (0 = no limit).
+  since_days: 730
+  # Safety cap so a first run can't take forever.
+  max_messages: 5000
+
+files:
+  enabled: false
+  # Directories to scan for personal info in local files.
+  paths: []
+  # File extensions to look inside (text-like formats only, by default).
+  extensions: [".txt", ".md", ".csv", ".json", ".eml", ".log", ".rtf"]
+  max_file_mb: 10
+
+output:
+  directory: "./inventory"
+  # redact | partial | full  — how much of detected sensitive values to keep.
+  # 'full' still NEVER writes crypto seed phrases.
+  detail: "redact"
+  save_attachments: false
+  # Set to a passphrase to encrypt the output bundle (requires `cryptography`).
+  encrypt_passphrase: ""
