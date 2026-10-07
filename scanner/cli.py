@@ -26,8 +26,8 @@ def cmd_detectors(_args) -> int:
     print("\nSensitive detectors:")
     for name, _fn in SENSITIVE_DETECTORS:
         print(f"  - {name}")
-    print("\nNote: crypto seed phrases and private keys are detected but their "
-          "values are never written to output.")
+    print("\nAt detail level 'full' (the default) every detected value is shown "
+          "exactly as found, including passwords, keys, and seed phrases.")
     return 0
 
 

@@ -25,9 +25,11 @@ files:
 
 output:
   directory: "./inventory"
-  # redact | partial | full  — how much of detected sensitive values to keep.
-  # 'full' still NEVER writes crypto seed phrases.
-  detail: "redact"
+  # full | partial | redact  — how much of detected sensitive values to show.
+  # 'full' shows everything exactly as found (passwords, keys, seed phrases).
+  # The report then contains real secrets, so set encrypt_passphrase below or
+  # delete the report when you're done.
+  detail: "full"
   save_attachments: false
   # Set to a passphrase to encrypt the output bundle (requires `cryptography`).
   encrypt_passphrase: ""

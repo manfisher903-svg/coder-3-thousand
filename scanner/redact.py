@@ -1,26 +1,25 @@
-"""Redaction of detected sensitive values.
+"""Rendering of detected sensitive values.
 
-The detail level controls how much of a value is preserved in the report:
-  - redact : show only the type and length, e.g. "•••• (16 digits)"
+The detail level controls how much of a value is shown in the report:
+  - full   : show the whole value, exactly as found (default)
   - partial: show last 4 characters, e.g. "•••• 1234"
-  - full   : show the whole value  (still NEVER for seed phrases / keys)
+  - redact : show only the type and length, e.g. "•••• (16 digits)"
 
-Seed phrases and raw private keys are never written out at any level.
+`full` shows everything, including passwords, keys, and crypto seed phrases.
+This is your own data on your own machine; the tool does not hide it from you.
+Just remember the report file then contains real secrets — keep it somewhere
+safe (or use the encrypt_passphrase option), and delete it when you're done.
 """
 
 from __future__ import annotations
 
 from .patterns import Finding
 
-_NEVER_REVEAL = {"seed_phrase", "private_key", "crypto_private_key"}
-
 
 def render_value(finding: Finding, detail: str) -> str:
-    kind = finding.kind
     raw = finding.raw
-
-    if kind in _NEVER_REVEAL or raw is None:
-        return "[detected — value withheld by design]"
+    if raw is None:
+        return "[detected — no value captured]"
 
     cleaned = raw.strip()
 
@@ -31,7 +30,7 @@ def render_value(finding: Finding, detail: str) -> str:
         tail = cleaned[-4:] if len(cleaned) > 4 else cleaned
         return f"•••• {tail}"
 
-    # redact (default)
+    # redact
     digits = sum(c.isdigit() for c in cleaned)
     if digits >= len(cleaned) - 2:
         return f"•••• ({digits} digits)"

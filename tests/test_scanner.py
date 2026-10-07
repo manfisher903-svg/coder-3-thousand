@@ -34,14 +34,15 @@ def test_ssn_detected():
     assert "ssn" in _kinds("SSN: 123-45-6789")
 
 
-def test_seed_phrase_flagged_but_value_withheld():
+def test_seed_phrase_flagged_and_visible_at_full():
     phrase = ("legal winner thank year wave sausage worth useful legal "
               "winner thank yellow")
     findings = scan_sensitive(phrase)
     seed = [f for f in findings if f.kind == "seed_phrase"]
     assert seed, "seed phrase should be flagged"
-    assert seed[0].raw is None, "seed phrase value must never be kept"
-    assert "withheld" in render_value(seed[0], "full")
+    # Full detail shows the whole phrase; redact masks it.
+    assert render_value(seed[0], "full") == phrase
+    assert render_value(seed[0], "redact").startswith("••••")
 
 
 def test_password_label_detected():

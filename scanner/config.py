@@ -34,7 +34,7 @@ class FilesConfig:
 @dataclass
 class OutputConfig:
     directory: str = "./inventory"
-    detail: str = "redact"  # redact | partial | full
+    detail: str = "full"  # full | partial | redact
     save_attachments: bool = False
     encrypt_passphrase: str = ""
 

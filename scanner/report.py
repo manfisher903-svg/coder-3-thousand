@@ -107,9 +107,12 @@ class Inventory:
         lines.append(f"_Generated {d['generated_at']} · detail level: "
                      f"`{d['detail_level']}` · {d['sources_scanned']} items scanned_")
         lines.append("")
-        lines.append("> This is a map of where your personal information lives. "
-                     "Sensitive values are redacted by design. Use it to clean up "
-                     "and secure accounts — do not store this file unprotected.")
+        note = ("Values are shown in full — this file contains real secrets, so "
+                "keep it somewhere safe (or encrypt it) and delete it when done."
+                if d["detail_level"] == "full"
+                else "Sensitive values are partially masked at this detail level.")
+        lines.append(f"> This is a map of where your personal information lives. "
+                     f"{note}")
         lines.append("")
 
         lines.append("## Services & accounts")

@@ -19,14 +19,15 @@ This tool is deliberately conservative about secrets:
    and *where* it lives — not a single file containing all your secrets. A file
    like that is the single most dangerous thing you could create: lose the
    laptop and you lose everything at once.
-3. **Sensitive values are redacted by default.** Card numbers show as
-   `•••• 1234`, etc. You can raise the detail level, but:
-4. **Crypto recovery/seed phrases are never written to output — ever.** The tool
-   only tells you *that* one appears to be in a given message so you can go move
-   it somewhere safe (ideally offline / a hardware wallet). If a seed phrase is
-   sitting in your email, that is itself a problem worth fixing.
-5. **Output is written with locked-down permissions** (`0700` dir, `0600`
-   files) and can be encrypted.
+3. **It shows you everything by default.** At the default `full` detail level
+   the report contains every detected value exactly as found — card numbers,
+   passwords, keys, and crypto seed phrases included. It's your data; the tool
+   does not hide it from you. (You can set `--detail partial` or `redact` if you
+   ever want masked output, e.g. to share a report.)
+4. **Because the report holds real secrets, protect it.** Output is written with
+   locked-down permissions (`0700` dir, `0600` files), can be AES-GCM encrypted
+   with `encrypt_passphrase`, and should be deleted when you're done. If a seed
+   phrase shows up in your email, consider moving it offline afterward.
 
 ## Install
 

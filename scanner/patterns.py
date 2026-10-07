@@ -80,16 +80,15 @@ def _find_cards(text: str) -> List[Finding]:
 
 def _find_seed(text: str) -> List[Finding]:
     out: List[Finding] = []
-    for _m in _SEED_RE.finditer(text):
-        # We deliberately do NOT keep the matched words.
+    for m in _SEED_RE.finditer(text):
         out.append(
             Finding(
                 "seed_phrase",
-                None,
+                m.group(0).strip(),
                 "high",
                 "Possible crypto recovery/seed phrase. If real, move it OFFLINE "
-                "immediately (hardware wallet / paper in a safe) and delete it "
-                "from email. Anyone who reads it can drain the wallet.",
+                "(hardware wallet / paper in a safe) and delete it from email. "
+                "Anyone who reads it can drain the wallet.",
             )
         )
     return out
