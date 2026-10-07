@@ -82,6 +82,9 @@ In the app you can:
 - **Best guess — your real details** — instead of a pile of candidates, the
   profile shows the most consistently-seen name, email, phone, home address and
   DOB first (ranked by how often each appears).
+- **App password / login** — the whole app is locked behind a password you set
+  on first open (stored hashed locally, never in plaintext). Every page requires
+  sign-in, so it's safe to reach over the internet. A **lock** link signs out.
 - **Built-in setup help** — when a scan fails (usually a login/app-password
   issue), the profile shows **step-by-step instructions for that exact provider**
   (Gmail, Yahoo, Outlook, iCloud, AOL, NetZero/Juno, or a generic fallback) with

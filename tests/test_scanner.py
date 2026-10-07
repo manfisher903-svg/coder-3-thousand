@@ -285,6 +285,43 @@ def test_setup_guides_are_provider_specific():
     assert g["steps"] and "weirdmail.io" in g["provider"]
 
 
+def test_app_login_protects_everything():
+    import tempfile, json, importlib, shutil
+    work = tempfile.mkdtemp()
+    cwd = os.getcwd()
+    os.chdir(work)
+    os.environ["PIS_ACCOUNTS"] = work + "/a.txt"
+    os.environ["PIS_OUTPUT"] = work + "/inv"
+    os.environ["PIS_AUTH"] = work + "/.pis_auth.json"
+    try:
+        import scanner.app as a
+        importlib.reload(a)
+        c = a.app.test_client()
+        # No password yet → everything redirects to setup.
+        assert "/setup" in c.get("/").headers["Location"]
+        # Create one → logged in.
+        r = c.post("/setup", data={"password": "secret1", "password2": "secret1"},
+                   follow_redirects=True)
+        assert b"Your email accounts" in r.data
+        # A fresh client is locked out of every page, including file serving.
+        c2 = a.app.test_client()
+        for p in ["/", "/master", "/export", "/file/x/y"]:
+            assert "/login" in c2.get(p).headers.get("Location", ""), p
+        assert b"Wrong password" in c2.post("/login", data={"password": "x"}).data
+        assert b"Your email accounts" in c2.post(
+            "/login", data={"password": "secret1"}, follow_redirects=True).data
+        # Stored hashed, never plaintext.
+        rec = json.load(open(os.environ["PIS_AUTH"]))
+        assert "secret1" not in json.dumps(rec) and rec["hash"]
+    finally:
+        os.chdir(cwd)
+        shutil.rmtree(work, ignore_errors=True)
+        for k in ("PIS_ACCOUNTS", "PIS_OUTPUT", "PIS_AUTH"):
+            os.environ.pop(k, None)
+        import scanner.app as a
+        importlib.reload(a)
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

@@ -19,7 +19,7 @@ import webbrowser
 from html import escape
 
 from flask import (Flask, abort, redirect, request, send_file,
-                   send_from_directory, url_for)
+                   send_from_directory, session, url_for)
 
 from .accounts import (add_or_update, delete_account, load_accounts,
                        save_accounts)
@@ -27,8 +27,85 @@ from .config import Config
 
 ACCOUNTS_PATH = os.environ.get("PIS_ACCOUNTS", "accounts.txt")
 OUTPUT_DIR = os.environ.get("PIS_OUTPUT", "inventory")
+AUTH_PATH = os.environ.get("PIS_AUTH", ".pis_auth.json")
+SECRET_PATH = ".pis_secret"
 
 app = Flask(__name__)
+
+
+# --- app login (protects everything behind one password) ------------------
+
+def _app_secret() -> bytes:
+    """Stable signing key for sessions; created once, persisted locally."""
+    import secrets
+    try:
+        with open(SECRET_PATH, "r", encoding="utf-8") as fh:
+            return bytes.fromhex(fh.read().strip())
+    except Exception:
+        key = secrets.token_bytes(32)
+        try:
+            with open(SECRET_PATH, "w", encoding="utf-8") as fh:
+                fh.write(key.hex())
+            os.chmod(SECRET_PATH, 0o600)
+        except OSError:
+            pass
+        return key
+
+
+app.secret_key = _app_secret()
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+
+_ITER = 200_000
+
+
+def _load_auth():
+    try:
+        with open(AUTH_PATH, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception:
+        return None
+
+
+def _set_password(pw: str) -> None:
+    import hashlib
+    import secrets
+    salt = secrets.token_bytes(16)
+    h = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, _ITER)
+    with open(AUTH_PATH, "w", encoding="utf-8") as fh:
+        json.dump({"salt": salt.hex(), "hash": h.hex(), "iter": _ITER}, fh)
+    try:
+        os.chmod(AUTH_PATH, 0o600)
+    except OSError:
+        pass
+
+
+def _check_password(pw: str) -> bool:
+    import hashlib
+    import hmac
+    rec = _load_auth()
+    if not rec:
+        return False
+    salt = bytes.fromhex(rec["salt"])
+    want = bytes.fromhex(rec["hash"])
+    got = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt,
+                              rec.get("iter", _ITER))
+    return hmac.compare_digest(got, want)
+
+
+# Endpoints reachable without being logged in.
+_PUBLIC = {"login", "setup", "static"}
+
+
+@app.before_request
+def _require_login():
+    if request.endpoint in _PUBLIC:
+        return None
+    if session.get("auth"):
+        return None
+    # No password set yet → force one-time setup; otherwise show login.
+    if _load_auth() is None:
+        return redirect(url_for("setup"))
+    return redirect(url_for("login"))
 
 # Scan progress state (single run at a time).
 # accounts: email -> {done,total,status,started,services,findings}
@@ -133,7 +210,7 @@ padding-top:10px}}
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
 <a href="/search">▸ search</a><a href="/export">▸ export</a>
-<a href="/recover">▸ recover</a>
+<a href="/recover">▸ recover</a><a href="/logout">▸ lock</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -324,6 +401,72 @@ def scan_status():
             a.pop("started", None)
             out.append(a)
     return jsonify({"running": running, "accounts": out})
+
+
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    # Only usable until a password exists.
+    if _load_auth() is not None and not session.get("auth"):
+        return redirect(url_for("login"))
+    msg = ""
+    if request.method == "POST":
+        pw = request.form.get("password", "")
+        pw2 = request.form.get("password2", "")
+        if len(pw) < 6:
+            msg = "Password must be at least 6 characters."
+        elif pw != pw2:
+            msg = "The two passwords don't match."
+        else:
+            _set_password(pw)
+            session["auth"] = True
+            return redirect(url_for("index"))
+    warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
+    body = f"""
+    <h1>Create your app password</h1>
+    <div class="card">
+    <p class="muted">This locks SpeedRunner so only you can open it — important
+    before reaching it over the internet. Pick something only you know.</p>
+    {warn}
+    <form method="post" action="/setup">
+      <p><input name="password" type="password" placeholder="new password"
+         style="min-width:260px" required></p>
+      <p><input name="password2" type="password" placeholder="repeat password"
+         style="min-width:260px" required></p>
+      <p><button>Set password</button></p>
+    </form></div>"""
+    return render("Set password", body)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if _load_auth() is None:
+        return redirect(url_for("setup"))
+    msg = ""
+    if request.method == "POST":
+        if _check_password(request.form.get("password", "")):
+            session["auth"] = True
+            session.permanent = True
+            return redirect(url_for("index"))
+        msg = "Wrong password."
+    warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
+    body = f"""
+    <h1>Sign in</h1>
+    <div class="card">
+    {warn}
+    <form method="post" action="/login">
+      <p><input name="password" type="password" placeholder="app password"
+         style="min-width:260px" autofocus required></p>
+      <p><button>Unlock</button></p>
+    </form>
+    <p class="muted">This is the SpeedRunner password you created — not your
+    email password.</p></div>"""
+    return render("Sign in", body)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 @app.route("/accounts/add", methods=["POST"])
