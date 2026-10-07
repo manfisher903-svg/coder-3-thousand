@@ -22,3 +22,5 @@ venv/
 # App login secrets (per machine)
 .pis_auth.json
 .pis_secret
+.pis_users.json
+data/

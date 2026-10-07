@@ -285,38 +285,60 @@ def test_setup_guides_are_provider_specific():
     assert g["steps"] and "weirdmail.io" in g["provider"]
 
 
-def test_app_login_protects_everything():
+def test_multiuser_login_and_isolation():
     import tempfile, json, importlib, shutil
     work = tempfile.mkdtemp()
     cwd = os.getcwd()
     os.chdir(work)
-    os.environ["PIS_ACCOUNTS"] = work + "/a.txt"
-    os.environ["PIS_OUTPUT"] = work + "/inv"
-    os.environ["PIS_AUTH"] = work + "/.pis_auth.json"
+    os.environ["PIS_USERS"] = work + "/.pis_users.json"
+    os.environ["PIS_DATA"] = work + "/data"
     try:
         import scanner.app as a
         importlib.reload(a)
-        c = a.app.test_client()
-        # No password yet → everything redirects to setup.
-        assert "/setup" in c.get("/").headers["Location"]
-        # Create one → logged in.
-        r = c.post("/setup", data={"password": "secret1", "password2": "secret1"},
-                   follow_redirects=True)
+        # Not logged in → everything redirects to login.
+        anon = a.app.test_client()
+        for p in ["/", "/master", "/export", "/file/x/y", "/scan/status"]:
+            assert "/login" in anon.get(p).headers.get("Location", ""), p
+
+        # Register alice.
+        alice = a.app.test_client()
+        r = alice.post("/register", data={"username": "alice", "password": "secret1",
+                                          "password2": "secret1"}, follow_redirects=True)
         assert b"Your email accounts" in r.data
-        # A fresh client is locked out of every page, including file serving.
-        c2 = a.app.test_client()
-        for p in ["/", "/master", "/export", "/file/x/y"]:
-            assert "/login" in c2.get(p).headers.get("Location", ""), p
-        assert b"Wrong password" in c2.post("/login", data={"password": "x"}).data
-        assert b"Your email accounts" in c2.post(
-            "/login", data={"password": "secret1"}, follow_redirects=True).data
-        # Stored hashed, never plaintext.
-        rec = json.load(open(os.environ["PIS_AUTH"]))
-        assert "secret1" not in json.dumps(rec) and rec["hash"]
+        # Username uniqueness enforced.
+        bobdup = a.app.test_client()
+        r = bobdup.post("/register", data={"username": "ALICE", "password": "x123456",
+                                           "password2": "x123456"})
+        assert b"already taken" in r.data
+        # Password mismatch + too short rejected.
+        assert b"match" in a.app.test_client().post(
+            "/register", data={"username": "bob", "password": "a", "password2": "b"}).data
+        assert b"at least 6" in a.app.test_client().post(
+            "/register", data={"username": "bob", "password": "123", "password2": "123"}).data
+
+        # alice adds an account → lands in HER data dir only.
+        alice.post("/accounts/add", data={"email": "a@x.com", "password": "pw"})
+        # Register bob; bob must NOT see alice's account.
+        bob = a.app.test_client()
+        bob.post("/register", data={"username": "bob", "password": "secret2",
+                                    "password2": "secret2"}, follow_redirects=True)
+        assert b"a@x.com" not in bob.get("/").data          # isolation
+        assert b"a@x.com" in alice.get("/").data
+
+        # Wrong/right login.
+        assert b"Wrong username or password" in a.app.test_client().post(
+            "/login", data={"username": "alice", "password": "nope"}).data
+        assert b"a@x.com" in a.app.test_client().post(
+            "/login", data={"username": "alice", "password": "secret1"},
+            follow_redirects=True).data
+
+        # Passwords stored hashed, never plaintext.
+        users = json.load(open(os.environ["PIS_USERS"]))
+        assert "secret1" not in json.dumps(users) and users["alice"]["hash"]
     finally:
         os.chdir(cwd)
         shutil.rmtree(work, ignore_errors=True)
-        for k in ("PIS_ACCOUNTS", "PIS_OUTPUT", "PIS_AUTH"):
+        for k in ("PIS_USERS", "PIS_DATA"):
             os.environ.pop(k, None)
         import scanner.app as a
         importlib.reload(a)

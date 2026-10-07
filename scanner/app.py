@@ -25,12 +25,38 @@ from .accounts import (add_or_update, delete_account, load_accounts,
                        save_accounts)
 from .config import Config
 
-ACCOUNTS_PATH = os.environ.get("PIS_ACCOUNTS", "accounts.txt")
-OUTPUT_DIR = os.environ.get("PIS_OUTPUT", "inventory")
-AUTH_PATH = os.environ.get("PIS_AUTH", ".pis_auth.json")
+USERS_PATH = os.environ.get("PIS_USERS", ".pis_users.json")
+DATA_ROOT = os.environ.get("PIS_DATA", "data")   # per-user data lives here
 SECRET_PATH = ".pis_secret"
 
 app = Flask(__name__)
+
+
+# --- per-user data paths (each signed-in user has private data) ------------
+
+def _user():
+    return session.get("user")
+
+
+def _user_dir():
+    from .users import user_dirname
+    d = os.path.join(DATA_ROOT, user_dirname(_user() or "nobody"))
+    os.makedirs(d, exist_ok=True)
+    try:
+        os.chmod(d, 0o700)
+    except OSError:
+        pass
+    return d
+
+
+def _acct_path():
+    return os.path.join(_user_dir(), "accounts.txt")
+
+
+def _out_dir():
+    d = os.path.join(_user_dir(), "inventory")
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 # --- app login (protects everything behind one password) ------------------
@@ -55,84 +81,53 @@ def _app_secret() -> bytes:
 app.secret_key = _app_secret()
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
-_ITER = 200_000
-
-
-def _load_auth():
-    try:
-        with open(AUTH_PATH, "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except Exception:
-        return None
-
-
-def _set_password(pw: str) -> None:
-    import hashlib
-    import secrets
-    salt = secrets.token_bytes(16)
-    h = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, _ITER)
-    with open(AUTH_PATH, "w", encoding="utf-8") as fh:
-        json.dump({"salt": salt.hex(), "hash": h.hex(), "iter": _ITER}, fh)
-    try:
-        os.chmod(AUTH_PATH, 0o600)
-    except OSError:
-        pass
-
-
-def _check_password(pw: str) -> bool:
-    import hashlib
-    import hmac
-    rec = _load_auth()
-    if not rec:
-        return False
-    salt = bytes.fromhex(rec["salt"])
-    want = bytes.fromhex(rec["hash"])
-    got = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt,
-                              rec.get("iter", _ITER))
-    return hmac.compare_digest(got, want)
-
-
 # Endpoints reachable without being logged in.
-_PUBLIC = {"login", "setup", "static"}
+_PUBLIC = {"login", "register", "static"}
 
 
 @app.before_request
 def _require_login():
     if request.endpoint in _PUBLIC:
         return None
-    if session.get("auth"):
+    if session.get("user"):
         return None
-    # No password set yet → force one-time setup; otherwise show login.
-    if _load_auth() is None:
-        return redirect(url_for("setup"))
     return redirect(url_for("login"))
 
-# Scan progress state (single run at a time).
-# accounts: email -> {done,total,status,started,services,findings}
-_scan_state = {"running": False, "accounts": {}, "order": []}
+# Scan progress state, kept PER USER so people don't see each other's scans.
+# user -> {"running":bool, "accounts":{email:{...}}, "order":[email,...]}
+_scan_states = {}
 _scan_lock = threading.Lock()
 
 
-def _progress_event(ev: dict) -> None:
-    """Update shared scan state from a batch progress event."""
+def _state_for(user: str) -> dict:
+    return _scan_states.setdefault(
+        user, {"running": False, "accounts": {}, "order": []})
+
+
+def _make_progress(user: str):
+    """A batch progress callback that updates one user's scan state."""
     import time
-    with _scan_lock:
-        accts = _scan_state["accounts"]
-        email = ev.get("email")
-        kind = ev.get("event")
-        if email and email not in accts:
-            accts[email] = {"done": 0, "total": None, "status": "pending",
-                            "started": None, "services": 0, "findings": 0}
-            _scan_state["order"].append(email)
-        if kind == "start":
-            accts[email].update(status="scanning", started=time.time())
-        elif kind == "progress":
-            accts[email].update(done=ev.get("done", 0), total=ev.get("total"),
-                                status="scanning")
-        elif kind == "done":
-            accts[email].update(status=ev.get("status", "ok"),
-                                services=ev.get("services", 0),
-                                findings=ev.get("sensitive", 0))
+
+    def cb(ev: dict) -> None:
+        with _scan_lock:
+            st = _state_for(user)
+            accts = st["accounts"]
+            email = ev.get("email")
+            kind = ev.get("event")
+            if email and email not in accts:
+                accts[email] = {"done": 0, "total": None, "status": "pending",
+                                "started": None, "services": 0, "findings": 0}
+                st["order"].append(email)
+            if kind == "start":
+                accts[email].update(status="scanning", started=time.time())
+            elif kind == "progress":
+                accts[email].update(done=ev.get("done", 0),
+                                    total=ev.get("total"), status="scanning")
+            elif kind == "done":
+                accts[email].update(status=ev.get("status", "ok"),
+                                    services=ev.get("services", 0),
+                                    findings=ev.get("sensitive", 0))
+    return cb
 
 
 # --- tiny HTML helpers ----------------------------------------------------
@@ -259,19 +254,19 @@ def _load_base_config() -> Config:
 @app.route("/")
 def index():
     accounts = []
-    if os.path.exists(ACCOUNTS_PATH):
+    if os.path.exists(_acct_path()):
         try:
-            accounts = load_accounts(ACCOUNTS_PATH)
+            accounts = load_accounts(_acct_path())
         except Exception:
             accounts = []
 
     with _scan_lock:
-        running = _scan_state["running"]
+        running = _state_for(_user())["running"]
 
     rows = ""
     for a in accounts:
         folder = a.safe_name()
-        report = os.path.join(OUTPUT_DIR, folder, "report.json")
+        report = os.path.join(_out_dir(), folder, "report.json")
         if os.path.exists(report):
             try:
                 d = json.load(open(report))
@@ -327,7 +322,7 @@ def index():
       <p><input name="password" type="text" placeholder="app password" required
          style="min-width:240px"></p>
       <p><button>Add account</button>
-      <span class="muted">Saved to {escape(ACCOUNTS_PATH)} on this computer.</span></p>
+      <span class="muted">Saved to {escape(_acct_path())} on this computer.</span></p>
     </form></div>
 
     <div class="card"><h2>Scan</h2>
@@ -342,7 +337,7 @@ def index():
       onsubmit="return confirm('Download and install the latest version? Your accounts and scans are kept.')">
       <button class="secondary">⟳ Update app</button></form>
     &nbsp;<span class="muted">Most providers need an <b>app password</b>.
-    Credentials live in {escape(ACCOUNTS_PATH)} — keep it private.</span></p>
+    Credentials live in {escape(_acct_path())} — keep it private.</span></p>
 
     <script>
     function bar(a){{
@@ -385,10 +380,11 @@ def scan_status():
     import time
     from flask import jsonify
     with _scan_lock:
-        running = _scan_state["running"]
+        st = _state_for(_user())
+        running = st["running"]
         out = []
-        for email in _scan_state["order"]:
-            a = dict(_scan_state["accounts"][email])
+        for email in st["order"]:
+            a = dict(st["accounts"][email])
             a["email"] = email
             eta = None
             if (a["status"] == "scanning" and a.get("total") and a.get("done")
@@ -403,63 +399,71 @@ def scan_status():
     return jsonify({"running": running, "accounts": out})
 
 
-@app.route("/setup", methods=["GET", "POST"])
-def setup():
-    # Only usable until a password exists.
-    if _load_auth() is not None and not session.get("auth"):
-        return redirect(url_for("login"))
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    from .users import add_user
     msg = ""
     if request.method == "POST":
+        u = request.form.get("username", "")
         pw = request.form.get("password", "")
         pw2 = request.form.get("password2", "")
-        if len(pw) < 6:
-            msg = "Password must be at least 6 characters."
-        elif pw != pw2:
+        if pw != pw2:
             msg = "The two passwords don't match."
         else:
-            _set_password(pw)
-            session["auth"] = True
-            return redirect(url_for("index"))
+            ok, m = add_user(USERS_PATH, u, pw)
+            if ok:
+                session["user"] = u.strip()
+                session.permanent = True
+                return redirect(url_for("index"))
+            msg = m
     warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
     body = f"""
-    <h1>Create your app password</h1>
+    <h1>Create your account</h1>
     <div class="card">
-    <p class="muted">This locks SpeedRunner so only you can open it — important
-    before reaching it over the internet. Pick something only you know.</p>
+    <p class="muted">Each person gets their own private SpeedRunner — your own
+    accounts and scans, locked to your login.</p>
     {warn}
-    <form method="post" action="/setup">
-      <p><input name="password" type="password" placeholder="new password"
+    <form method="post" action="/register">
+      <p><input name="username" placeholder="choose a username"
+         style="min-width:260px" required></p>
+      <p><input name="password" type="password" placeholder="password (min 6)"
          style="min-width:260px" required></p>
       <p><input name="password2" type="password" placeholder="repeat password"
          style="min-width:260px" required></p>
-      <p><button>Set password</button></p>
-    </form></div>"""
-    return render("Set password", body)
+      <p><button>Create account</button></p>
+    </form>
+    <p class="muted">Already have one? <a href="/login">Sign in</a>.</p>
+    <p class="muted">Usernames are unique — no two people can use the same one.</p>
+    </div>"""
+    return render("Create account", body)
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if _load_auth() is None:
-        return redirect(url_for("setup"))
+    from .users import verify
     msg = ""
     if request.method == "POST":
-        if _check_password(request.form.get("password", "")):
-            session["auth"] = True
+        name = verify(USERS_PATH, request.form.get("username", ""),
+                      request.form.get("password", ""))
+        if name:
+            session["user"] = name
             session.permanent = True
             return redirect(url_for("index"))
-        msg = "Wrong password."
+        msg = "Wrong username or password."
     warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
     body = f"""
     <h1>Sign in</h1>
     <div class="card">
     {warn}
     <form method="post" action="/login">
-      <p><input name="password" type="password" placeholder="app password"
+      <p><input name="username" placeholder="username"
          style="min-width:260px" autofocus required></p>
+      <p><input name="password" type="password" placeholder="password"
+         style="min-width:260px" required></p>
       <p><button>Unlock</button></p>
     </form>
-    <p class="muted">This is the SpeedRunner password you created — not your
-    email password.</p></div>"""
+    <p class="muted">New here? <a href="/register">Create an account</a>. This is
+    your SpeedRunner login — not your email password.</p></div>"""
     return render("Sign in", body)
 
 
@@ -474,7 +478,7 @@ def add_account():
     email = (request.form.get("email") or "").strip()
     password = (request.form.get("password") or "").strip()
     if email and password:
-        add_or_update(ACCOUNTS_PATH, email, password)
+        add_or_update(_acct_path(), email, password)
     return redirect(url_for("index"))
 
 
@@ -486,11 +490,11 @@ def edit_account():
     if original and email:
         # Keep the existing password if the field was left blank.
         if not password:
-            for a in load_accounts(ACCOUNTS_PATH):
+            for a in load_accounts(_acct_path()):
                 if a.email.lower() == original.lower():
                     password = a.password
                     break
-        add_or_update(ACCOUNTS_PATH, email, password, original_email=original)
+        add_or_update(_acct_path(), email, password, original_email=original)
     return redirect(url_for("index"))
 
 
@@ -502,28 +506,28 @@ def remove_account():
         # Remove the scan folder too, so stale data doesn't linger.
         from .accounts import Account
         folder = Account(email=email, password="").safe_name()
-        delete_account(ACCOUNTS_PATH, email)
-        shutil.rmtree(os.path.join(OUTPUT_DIR, folder), ignore_errors=True)
+        delete_account(_acct_path(), email)
+        shutil.rmtree(os.path.join(_out_dir(), folder), ignore_errors=True)
     return redirect(url_for("index"))
 
 
-def _run_scan(only_email: str = None):
+def _run_scan(accounts_path, output_dir, user, only_email=None):
     from .batch import run_batch, scan_one, write_index
 
     base = _load_base_config()
-    progress = _progress_event
+    progress = _make_progress(user)
 
     try:
         if only_email:
-            accts = [a for a in load_accounts(ACCOUNTS_PATH)
+            accts = [a for a in load_accounts(accounts_path)
                      if a.email.lower() == only_email.lower()]
             for a in accts:
-                acct_dir = os.path.join(OUTPUT_DIR, a.safe_name())
+                acct_dir = os.path.join(output_dir, a.safe_name())
                 scan_one(a, base, acct_dir, progress)
             # Rebuild the overview from every account's current report.
             summaries = []
-            for a in load_accounts(ACCOUNTS_PATH):
-                rp = os.path.join(OUTPUT_DIR, a.safe_name(), "report.json")
+            for a in load_accounts(accounts_path):
+                rp = os.path.join(output_dir, a.safe_name(), "report.json")
                 if os.path.exists(rp):
                     try:
                         d = json.load(open(rp))
@@ -533,35 +537,40 @@ def _run_scan(only_email: str = None):
                                           "status": "ok"})
                     except Exception:
                         pass
-            write_index(OUTPUT_DIR, summaries)
+            write_index(output_dir, summaries)
         else:
-            run_batch(ACCOUNTS_PATH, base, OUTPUT_DIR, progress=progress)
+            run_batch(accounts_path, base, output_dir, progress=progress)
     finally:
         with _scan_lock:
-            _scan_state["running"] = False
+            _state_for(user)["running"] = False
+
+
+def _start_scan(only_email=None):
+    user = _user()
+    accounts_path, output_dir = _acct_path(), _out_dir()
+    with _scan_lock:
+        st = _state_for(user)
+        if not st["running"]:
+            st["running"] = True
+            st["accounts"] = {}
+            st["order"] = []
+            threading.Thread(
+                target=_run_scan,
+                args=(accounts_path, output_dir, user, only_email),
+                daemon=True).start()
 
 
 @app.route("/accounts/rescan", methods=["POST"])
 def rescan_account():
     email = (request.form.get("email") or "").strip()
-    with _scan_lock:
-        if not _scan_state["running"] and email:
-            _scan_state["running"] = True
-            _scan_state["accounts"] = {}
-            _scan_state["order"] = []
-            threading.Thread(target=_run_scan, kwargs={"only_email": email},
-                             daemon=True).start()
+    if email:
+        _start_scan(only_email=email)
     return redirect(url_for("index"))
 
 
 @app.route("/scan", methods=["POST"])
 def scan():
-    with _scan_lock:
-        if not _scan_state["running"]:
-            _scan_state["running"] = True
-            _scan_state["accounts"] = {}
-            _scan_state["order"] = []
-            threading.Thread(target=_run_scan, daemon=True).start()
+    _start_scan()
     return redirect(url_for("index"))
 
 
@@ -572,7 +581,7 @@ def _is_image(name: str) -> bool:
 @app.route("/profile/<folder>")
 def profile(folder):
     folder = os.path.basename(folder)  # prevent traversal
-    acct_dir = os.path.join(OUTPUT_DIR, folder)
+    acct_dir = os.path.join(_out_dir(), folder)
     report = os.path.join(acct_dir, "report.json")
     if not os.path.exists(report):
         abort(404)
@@ -755,17 +764,17 @@ def profile(folder):
 @app.route("/file/<folder>/<path:path>")
 def serve_file(folder, path):
     folder = os.path.basename(folder)
-    directory = os.path.abspath(os.path.join(OUTPUT_DIR, folder))
+    directory = os.path.abspath(os.path.join(_out_dir(), folder))
     # send_from_directory guards against path traversal out of `directory`.
     return send_from_directory(directory, path)
 
 
 def _all_reports():
     """Yield (account_email, folder, report_dict) for every scanned account."""
-    if not os.path.isdir(OUTPUT_DIR):
+    if not os.path.isdir(_out_dir()):
         return
-    for folder in sorted(os.listdir(OUTPUT_DIR)):
-        rp = os.path.join(OUTPUT_DIR, folder, "report.json")
+    for folder in sorted(os.listdir(_out_dir())):
+        rp = os.path.join(_out_dir(), folder, "report.json")
         if os.path.isfile(rp):
             try:
                 d = json.load(open(rp))
@@ -916,9 +925,9 @@ def recover():
     from .recovery import recovery_url
 
     accounts = []
-    if os.path.exists(ACCOUNTS_PATH):
+    if os.path.exists(_acct_path()):
         try:
-            accounts = load_accounts(ACCOUNTS_PATH)
+            accounts = load_accounts(_acct_path())
         except Exception:
             accounts = []
 
@@ -1107,7 +1116,7 @@ def export_download():
         for email, folder, d in _all_reports():
             if folder not in chosen:
                 continue
-            acct_dir = os.path.join(OUTPUT_DIR, folder)
+            acct_dir = os.path.join(_out_dir(), folder)
 
             if "services" in include:
                 z.writestr(f"{folder}/services.csv", _csv_bytes(_services_rows(d)))
