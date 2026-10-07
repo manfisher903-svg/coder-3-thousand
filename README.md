@@ -88,7 +88,9 @@ In the app you can:
   users. Every page requires sign-in, so it's safe to reach over the internet.
   Each user gets their **own private data** (their own email accounts and scans
   under `data/<username>/`) — nobody can see anyone else's. A **lock** link
-  signs out.
+  signs out. When a username is taken, the page fires back one of 100 rotating
+  roast messages (a different featured set each week); add your own in a
+  `roasts.txt` file next to the app.
 - **Built-in setup help** — when a scan fails (usually a login/app-password
   issue), the profile shows **step-by-step instructions for that exact provider**
   (Gmail, Yahoo, Outlook, iCloud, AOL, NetZero/Juno, or a generic fallback) with

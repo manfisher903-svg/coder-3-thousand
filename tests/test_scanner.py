@@ -285,6 +285,16 @@ def test_setup_guides_are_provider_specific():
     assert g["steps"] and "weirdmail.io" in g["provider"]
 
 
+def test_roasts_pool_is_clean_and_rotates():
+    from scanner.roasts import ROASTS, pick_roast
+    assert len(ROASTS) == 100
+    bad = ["nigg", "fag", "retard", "rape", "kys", "tranny", "spic", "chink",
+           "kike", "suicide", "kill yourself"]
+    joined = " ".join(ROASTS).lower()
+    assert not [b for b in bad if b in joined], "roast pool must stay slur-free"
+    assert pick_roast().startswith("⚠️")
+
+
 def test_multiuser_login_and_isolation():
     import tempfile, json, importlib, shutil
     work = tempfile.mkdtemp()
@@ -305,11 +315,12 @@ def test_multiuser_login_and_isolation():
         r = alice.post("/register", data={"username": "alice", "password": "secret1",
                                           "password2": "secret1"}, follow_redirects=True)
         assert b"Your email accounts" in r.data
-        # Username uniqueness enforced.
+        # Username uniqueness enforced (now shown via a rotating roast).
         bobdup = a.app.test_client()
         r = bobdup.post("/register", data={"username": "ALICE", "password": "x123456",
                                            "password2": "x123456"})
-        assert b"already taken" in r.data
+        assert "⚠️".encode() in r.data and b"Create account" in r.data  # rejected
+        assert b"Your email accounts" not in r.data                     # not logged in
         # Password mismatch + too short rejected.
         assert b"match" in a.app.test_client().post(
             "/register", data={"username": "bob", "password": "a", "password2": "b"}).data

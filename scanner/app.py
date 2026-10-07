@@ -401,7 +401,8 @@ def scan_status():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    from .users import add_user
+    from .users import add_user, username_taken
+    from .roasts import pick_roast
     msg = ""
     if request.method == "POST":
         u = request.form.get("username", "")
@@ -409,6 +410,8 @@ def register():
         pw2 = request.form.get("password2", "")
         if pw != pw2:
             msg = "The two passwords don't match."
+        elif username_taken(USERS_PATH, u):
+            msg = pick_roast()          # rotating roast when the name is taken
         else:
             ok, m = add_user(USERS_PATH, u, pw)
             if ok:
