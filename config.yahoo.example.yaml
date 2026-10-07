@@ -1,0 +1,36 @@
+# Ready-to-use config for a Yahoo Mail account.
+# Copy to config.yaml, then change ONLY the two lines marked CHANGE ME.
+#
+#   cp config.yahoo.example.yaml config.yaml
+#
+# Yahoo requires an APP PASSWORD (your normal Yahoo password will NOT work):
+#   1. Go to https://login.yahoo.com  ->  Account Info  ->  Account Security
+#   2. Click "Generate app password" (or "Generate and manage app passwords")
+#   3. Give it a name like "scanner", copy the 16-character password it shows
+#   4. Paste it below as the password (or put it in PIS_EMAIL_PASSWORD instead)
+
+email:
+  enabled: true
+  host: imap.mail.yahoo.com      # Yahoo's IMAP server (leave as-is)
+  port: 993                      # leave as-is
+  username: you@yahoo.com        # CHANGE ME  -> your full Yahoo address
+  password: ""                   # CHANGE ME  -> the 16-char app password
+  mailbox: "INBOX"               # scans your inbox; see note below for everything
+  since_days: 730                # only mail newer than ~2 years (0 = all time)
+  max_messages: 5000             # safety cap for the first run
+
+# To scan EVERYTHING in Yahoo, not just the inbox, set:
+#   mailbox: "Bulk"   for spam, or leave INBOX. Yahoo keeps all mail in INBOX
+#   plus folders; to sweep a folder use its name, e.g. "Archive".
+
+files:
+  enabled: false
+  paths: []
+  extensions: [".txt", ".md", ".csv", ".json", ".eml", ".log", ".rtf"]
+  max_file_mb: 10
+
+output:
+  directory: "./inventory"
+  detail: "full"                 # show everything in full (your request)
+  save_attachments: false
+  encrypt_passphrase: ""         # optional: set a passphrase to encrypt the report

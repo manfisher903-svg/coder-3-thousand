@@ -49,6 +49,27 @@ For Gmail/most providers you must create an **app password** (not your normal
 password) and, for Gmail, enable IMAP. Put it in the config, or better, in the
 `PIS_EMAIL_PASSWORD` environment variable so it never touches disk.
 
+### Yahoo Mail
+
+There's a ready-made Yahoo config — copy it and change only two lines:
+
+```bash
+cp config.yahoo.example.yaml config.yaml
+```
+
+- Host is already set to `imap.mail.yahoo.com`, port `993`.
+- Yahoo needs an **app password**: log in at yahoo.com → **Account Info** →
+  **Account Security** → **Generate app password**, name it "scanner", and copy
+  the 16-character code.
+- In `config.yaml` set `username:` to your `you@yahoo.com` address and
+  `password:` to that 16-character code.
+
+Then run:
+
+```bash
+python -m scanner.cli scan --config config.yaml --output ./inventory
+```
+
 ## Run
 
 ```bash
