@@ -155,6 +155,34 @@ def test_accounts_add_update_delete():
     assert delete_account(p, "missing@x.com") is False
 
 
+def test_mailbox_sweep_logic():
+    from scanner.sources.email_imap import EmailSource
+    from scanner.config import EmailConfig
+
+    class FakeConn:
+        def __init__(self, lines): self._lines = lines
+        def list(self): return ("OK", self._lines)
+
+    def src_for(host, mailbox):
+        cfg = EmailConfig(host=host, username="x", password="p", mailbox=mailbox)
+        s = EmailSource.__new__(EmailSource)
+        s.cfg = cfg
+        s.total = None
+        return s
+
+    yahoo = [b'(\\HasNoChildren) "/" "INBOX"', b'(\\HasNoChildren) "/" "Sent"',
+             b'(\\Noselect) "/" "[Folders]"']
+    boxes = src_for("imap.mail.yahoo.com", "ALL")._list_mailboxes(FakeConn(yahoo))
+    assert "INBOX" in boxes and "Sent" in boxes and "[Folders]" not in boxes
+
+    gmail = [b'(\\All) "/" "[Gmail]/All Mail"', b'(\\Junk) "/" "[Gmail]/Spam"',
+             b'(\\HasNoChildren) "/" "INBOX"']
+    gb = src_for("imap.gmail.com", "ALL")._list_mailboxes(FakeConn(gmail))
+    assert any("All Mail" in b for b in gb) and "INBOX" not in gb
+
+    assert src_for("imap.gmail.com", "INBOX")._list_mailboxes(FakeConn([])) == ["INBOX"]
+
+
 def test_inventory_roundtrip():
     inv = Inventory(detail="redact")
     inv.add_service("chase", "banking", "chase.com", "Statement ready")

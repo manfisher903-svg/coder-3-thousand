@@ -17,6 +17,25 @@ from .report import Inventory, write_reports
 ProgressFn = Optional[Callable[[dict], None]]
 
 
+def _friendly_error(raw: str, email: str) -> str:
+    """Translate a raw IMAP/login error into plain, actionable advice."""
+    low = raw.lower()
+    if any(k in low for k in ("authentication", "auth", "login", "credentials",
+                              "invalid", "username", "password", "web login")):
+        return (f"Login was rejected. For {email} you almost certainly need an "
+                f"APP PASSWORD (not your normal password), and IMAP must be "
+                f"turned on in your email settings. Raw error: {raw}")
+    if any(k in low for k in ("timed out", "timeout", "refused", "resolve",
+                              "name or service", "unreachable", "connection")):
+        return (f"Couldn't reach the mail server. Check your internet, or set "
+                f"the IMAP host manually if this is an unusual provider. "
+                f"Raw error: {raw}")
+    if "select" in low or "mailbox" in low or "does not exist" in low:
+        return (f"That mailbox/folder wasn't found. Try mailbox 'INBOX' or, for "
+                f"Gmail, '[Gmail]/All Mail'. Raw error: {raw}")
+    return raw
+
+
 def _emit(cb: ProgressFn, **event) -> None:
     if cb:
         try:
@@ -80,6 +99,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
               done=count, total=count)
     except Exception as exc:  # noqa: BLE001
         status = f"failed: {exc}"
+        inv.error = _friendly_error(str(exc), account.email)
 
     write_reports(inv, out_dir)
     if base.output.encrypt_passphrase:

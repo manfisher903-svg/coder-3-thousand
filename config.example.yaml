@@ -12,11 +12,13 @@ email:
   # Prefer the PIS_EMAIL_PASSWORD env var over putting the password here.
   # For Gmail and most providers this must be an APP PASSWORD, not your login.
   password: ""
-  mailbox: "INBOX"              # or "[Gmail]/All Mail" to scan everything
-  # Only look at mail newer than this many days (0 = no limit).
-  since_days: 730
+  # "ALL" scans every folder (inbox, sent, archive, spam, trash, All Mail).
+  # Or name one folder, e.g. "INBOX" or "[Gmail]/All Mail".
+  mailbox: "ALL"
+  # Only look at mail newer than this many days (0 = everything, all time).
+  since_days: 0
   # Safety cap so a first run can't take forever.
-  max_messages: 5000
+  max_messages: 50000
 
 files:
   enabled: false

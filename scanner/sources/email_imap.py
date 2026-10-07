@@ -142,50 +142,108 @@ class EmailSource:
             return f'(SINCE "{since.strftime("%d-%b-%Y")}")'
         return "ALL"
 
+    def _is_gmail(self) -> bool:
+        return "gmail" in (self.cfg.host or "").lower() or \
+               "google" in (self.cfg.host or "").lower()
+
+    def _list_mailboxes(self, conn) -> List[str]:
+        """Return the folders to scan. 'ALL' means sweep every folder."""
+        want = (self.cfg.mailbox or "INBOX").strip()
+        if want and want.upper() != "ALL":
+            return [want]
+
+        typ, data = conn.list()
+        names: List[str] = []
+        if typ == "OK":
+            for line in data:
+                if not line:
+                    continue
+                text = line.decode(errors="replace") if isinstance(line, bytes) else str(line)
+                if "\\Noselect" in text:
+                    continue  # container, not a real folder
+                # The mailbox name is the last quoted string, or last token.
+                if '"' in text:
+                    name = text.rsplit('"', 2)[-2]
+                else:
+                    name = text.split()[-1]
+                if name:
+                    names.append(name)
+
+        if self._is_gmail():
+            # Gmail duplicates every message across labels; "All Mail" already
+            # holds Inbox + Sent + Archived, so scan it plus Spam and Trash.
+            preferred = [n for n in names
+                         if n.endswith("All Mail") or n.endswith("Spam")
+                         or n.endswith("Trash")]
+            return preferred or ["[Gmail]/All Mail"]
+
+        return names or ["INBOX"]
+
     def iter_messages(self) -> Iterator[MessageRecord]:
         conn = self._connect()
         try:
             conn.login(self.cfg.username, self.cfg.password)
-            # readonly=True guarantees we never modify the mailbox.
-            conn.select(self.cfg.mailbox, readonly=True)
+            mailboxes = self._list_mailboxes(conn)
 
-            typ, data = conn.search(None, self._search_criteria())
-            if typ != "OK":
-                return
-            ids = data[0].split()
-            if self.cfg.max_messages:
-                ids = ids[-self.cfg.max_messages:]  # most recent N
-
-            # Expose the total so callers can show a progress bar / ETA.
-            self.total = len(ids)
-
-            for msg_id in reversed(ids):  # newest first
-                typ, msg_data = conn.fetch(msg_id, "(RFC822)")
-                if typ != "OK" or not msg_data or not msg_data[0]:
-                    continue
-                raw = msg_data[0][1]
-                msg = email.message_from_bytes(raw)
-
-                name, addr = parseaddr(msg.get("From", ""))
-                domain = addr.split("@")[-1].lower() if "@" in addr else ""
-                body, attachments = _extract_body(msg)
-
-                date = None
+            # First pass: search every folder so we know the true total (ETA).
+            plan = []  # (mailbox, [ids])
+            for mbox in mailboxes:
                 try:
-                    date = parsedate_to_datetime(msg.get("Date"))
+                    typ, _ = conn.select(f'"{mbox}"', readonly=True)
+                    if typ != "OK":
+                        continue
+                    typ, data = conn.search(None, self._search_criteria())
+                    if typ != "OK" or not data or data[0] is None:
+                        continue
+                    ids = data[0].split()
+                    if ids:
+                        plan.append((mbox, ids))
                 except Exception:
-                    pass
+                    continue
 
-                yield MessageRecord(
-                    uid=msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id),
-                    date=date,
-                    sender_name=_decode(name),
-                    sender_email=addr.lower(),
-                    sender_domain=domain,
-                    subject=_decode(msg.get("Subject")),
-                    body_text=body,
-                    attachments=attachments,
-                )
+            all_total = sum(len(ids) for _m, ids in plan)
+            if self.cfg.max_messages and all_total > self.cfg.max_messages:
+                all_total = self.cfg.max_messages
+            self.total = all_total
+
+            emitted = 0
+            for mbox, ids in plan:
+                try:
+                    typ, _ = conn.select(f'"{mbox}"', readonly=True)
+                    if typ != "OK":
+                        continue
+                except Exception:
+                    continue
+                for msg_id in reversed(ids):  # newest first within each folder
+                    if self.cfg.max_messages and emitted >= self.cfg.max_messages:
+                        return
+                    typ, msg_data = conn.fetch(msg_id, "(RFC822)")
+                    if typ != "OK" or not msg_data or not msg_data[0]:
+                        continue
+                    raw = msg_data[0][1]
+                    msg = email.message_from_bytes(raw)
+
+                    name, addr = parseaddr(msg.get("From", ""))
+                    domain = addr.split("@")[-1].lower() if "@" in addr else ""
+                    body, attachments = _extract_body(msg)
+
+                    date = None
+                    try:
+                        date = parsedate_to_datetime(msg.get("Date"))
+                    except Exception:
+                        pass
+
+                    emitted += 1
+                    yield MessageRecord(
+                        uid=f"{mbox}:{msg_id.decode() if isinstance(msg_id, bytes) else msg_id}",
+                        date=date,
+                        sender_name=_decode(name),
+                        sender_email=addr.lower(),
+                        sender_domain=domain,
+                        subject=_decode(msg.get("Subject")),
+                        body_text=body,
+                        attachments=attachments,
+                    )
         finally:
             try:
                 conn.close()

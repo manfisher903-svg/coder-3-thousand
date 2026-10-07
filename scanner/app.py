@@ -168,6 +168,9 @@ def _load_base_config() -> Config:
     cfg = Config()
     cfg.output.detail = "full"
     cfg.output.save_attachments = True
+    cfg.email.since_days = 0        # all time, not just the last 2 years
+    cfg.email.mailbox = "ALL"       # every folder: inbox, sent, archive, spam…
+    cfg.email.max_messages = 50000  # effectively "everything" for most mailboxes
     return cfg
 
 
@@ -192,8 +195,13 @@ def index():
         if os.path.exists(report):
             try:
                 d = json.load(open(report))
-                summary = (f'{d.get("service_count",0)} services · '
-                           f'{d.get("sensitive_count",0)} findings')
+                if d.get("scan_error"):
+                    summary = '<span style="color:var(--red)">⚠ scan failed — click profile</span>'
+                elif d.get("service_count", 0) == 0 and d.get("sensitive_count", 0) == 0:
+                    summary = '<span class="warn">0 found — see profile for why</span>'
+                else:
+                    summary = (f'{d.get("service_count",0)} services · '
+                               f'{d.get("sensitive_count",0)} findings')
             except Exception:
                 summary = "scanned"
             link = f'<a href="{url_for("profile", folder=folder)}">Open profile →</a>'
@@ -461,11 +469,37 @@ def profile(folder):
     if not att_html:
         att_html = "<p class='muted'>No files or pictures saved for this account.</p>"
 
+    scanned_n = d.get("sources_scanned", 0)
+    banner = ""
+    if d.get("scan_error"):
+        banner = (f'<div class="card" style="border-color:var(--red)">'
+                  f'<b style="color:var(--red)">⚠ This scan failed.</b>'
+                  f'<p>{escape(d["scan_error"])}</p>'
+                  f'<p class="muted">Fix it, then click <b>Re-scan</b> on the '
+                  f'accounts page.</p></div>')
+    elif scanned_n == 0:
+        banner = ('<div class="card" style="border-color:var(--amber)">'
+                  '<b class="warn">The login worked but 0 messages were read.</b>'
+                  '<p class="muted">Usually one of these:</p>'
+                  '<ul><li>Your mail is in other folders, not the Inbox. For '
+                  'Gmail set the mailbox to <code>[Gmail]/All Mail</code> in '
+                  'config.yaml.</li>'
+                  '<li>Your mail is older than the scan window. Set '
+                  '<code>since_days: 0</code> in config.yaml to scan everything.</li>'
+                  '<li>IMAP access is limited on this account/plan.</li></ul></div>')
+    elif d.get("service_count", 0) == 0 and d.get("sensitive_count", 0) == 0:
+        banner = (f'<div class="card" style="border-color:var(--amber)">'
+                  f'<b class="warn">Read {scanned_n} messages but matched nothing.</b>'
+                  f'<p class="muted">The detectors look for specific patterns. '
+                  f'Try scanning more mail (mailbox <code>[Gmail]/All Mail</code> '
+                  f'and <code>since_days: 0</code> in config.yaml).</p></div>')
+
     body = f"""
     <h1>{escape(d.get('account') or folder)}</h1>
     <p class="muted">Detail level: {escape(d.get('detail_level','full'))} ·
-    {d.get('sources_scanned',0)} messages scanned ·
+    {scanned_n} messages scanned ·
     <a href="{url_for('serve_file', folder=folder, path='report.md')}">raw report.md</a></p>
+    {banner}
 
     <h2>Services &amp; accounts <span class="badge">{d.get('service_count',0)}</span></h2>
     {svc_html}
