@@ -81,6 +81,16 @@ def test_provider_detection_builtin():
     assert icloud.host == "imap.mail.me.com" and icloud.security == "ssl"
 
 
+def test_netzero_juno_use_pop3():
+    # NetZero/Juno have no IMAP server — they must route to POP3.
+    s = resolve_imap("someone@netzero.net", allow_network=False)
+    assert s.host == "pop.netzero.net" and s.protocol == "pop3" and s.port == 995
+    j = resolve_imap("x@juno.com", allow_network=False)
+    assert j.host == "pop.juno.com" and j.protocol == "pop3"
+    # Normal providers stay on IMAP.
+    assert resolve_imap("y@gmail.com", allow_network=False).protocol == "imap"
+
+
 def test_provider_detection_unknown_offline_raises():
     try:
         resolve_imap("x@nonexistent-weird-domain.example", allow_network=False)

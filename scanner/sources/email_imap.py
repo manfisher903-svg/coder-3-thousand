@@ -125,6 +125,7 @@ class EmailSource:
         self.cfg.host = server.host
         self.cfg.port = server.port
         self.cfg.security = server.security
+        self.cfg.protocol = getattr(server, "protocol", "imap")
         self.detected = server  # for the CLI to report what it found
 
     def _connect(self, timeout: float = 30.0) -> imaplib.IMAP4:
@@ -180,6 +181,59 @@ class EmailSource:
         return names or ["INBOX"]
 
     def iter_messages(self) -> Iterator[MessageRecord]:
+        if getattr(self.cfg, "protocol", "imap") == "pop3":
+            yield from self._iter_pop3()
+            return
+        yield from self._iter_imap()
+
+    def _iter_pop3(self) -> Iterator[MessageRecord]:
+        """Read messages over POP3 (used by providers without IMAP)."""
+        import poplib
+
+        if self.cfg.security == "starttls":
+            m = poplib.POP3(self.cfg.host, self.cfg.port or 110, timeout=30)
+            try:
+                m.stls()
+            except Exception:
+                pass
+        else:
+            m = poplib.POP3_SSL(self.cfg.host, self.cfg.port or 995, timeout=30)
+        try:
+            m.user(self.cfg.username)
+            m.pass_(self.cfg.password)
+            count = len(m.list()[1])
+            if self.cfg.max_messages:
+                count = min(count, self.cfg.max_messages)
+            self.total = count
+            # POP3 numbers 1..N oldest→newest; fetch newest first.
+            total_msgs = len(m.list()[1])
+            for i in range(total_msgs, total_msgs - count, -1):
+                try:
+                    _resp, lines, _oct = m.retr(i)
+                except Exception:
+                    continue
+                msg = email.message_from_bytes(b"\r\n".join(lines))
+                name, addr = parseaddr(msg.get("From", ""))
+                domain = addr.split("@")[-1].lower() if "@" in addr else ""
+                body, attachments = _extract_body(msg)
+                date = None
+                try:
+                    date = parsedate_to_datetime(msg.get("Date"))
+                except Exception:
+                    pass
+                yield MessageRecord(
+                    uid=f"pop:{i}", date=date, sender_name=_decode(name),
+                    sender_email=addr.lower(), sender_domain=domain,
+                    subject=_decode(msg.get("Subject")), body_text=body,
+                    attachments=attachments,
+                )
+        finally:
+            try:
+                m.quit()
+            except Exception:
+                pass
+
+    def _iter_imap(self) -> Iterator[MessageRecord]:
         conn = self._connect()
         try:
             conn.login(self.cfg.username, self.cfg.password)

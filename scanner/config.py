@@ -15,6 +15,7 @@ class EmailConfig:
     host: str = ""          # leave blank to auto-detect from the address
     port: int = 0           # 0 = auto (993 for SSL, 143 for STARTTLS)
     security: str = "ssl"   # ssl | starttls
+    protocol: str = "imap"  # imap | pop3 (auto-detected; NetZero/Juno use pop3)
     username: str = ""
     password: str = ""
     mailbox: str = "INBOX"
