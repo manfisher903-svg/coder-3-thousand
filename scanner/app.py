@@ -1010,6 +1010,30 @@ def _lan_ip():
         return None
 
 
+def _all_ipv4():
+    """All IPv4 addresses on this machine, so the Tailscale/VPN one shows up."""
+    import socket
+    ips = set()
+    primary = _lan_ip()
+    if primary:
+        ips.add(primary)
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ips.add(info[4][0])
+    except Exception:
+        pass
+    return [ip for ip in ips if not ip.startswith("127.")]
+
+
+def _is_tailscale(ip):
+    # Tailscale hands out addresses in the 100.64.0.0/10 CGNAT range.
+    try:
+        a, b = (int(x) for x in ip.split(".")[:2])
+        return a == 100 and 64 <= b <= 127
+    except Exception:
+        return False
+
+
 def main():
     print(r"""
    ___                   _ ___
@@ -1025,12 +1049,20 @@ def main():
     local_url = "http://127.0.0.1:5000"
 
     if lan:
-        ip = _lan_ip() or "<this-computer-ip>"
         print(f"  [+] on this computer: {local_url}")
-        print(f"  [+] on your PHONE (same Wi-Fi): http://{ip}:5000")
-        print("  [!] LAN mode: anyone on your Wi-Fi who opens that link can use")
-        print("      the app. Use it on a trusted home network only, and close")
-        print("      it (Ctrl+C) when you're done.")
+        addrs = _all_ipv4()
+        if addrs:
+            print("  [+] on your PHONE, open one of these:")
+            for ip in sorted(addrs, key=lambda x: (not _is_tailscale(x), x)):
+                tag = ("  <- Tailscale: works from ANYWHERE (phone needs "
+                       "Tailscale on)" if _is_tailscale(ip)
+                       else "  (same Wi-Fi only)")
+                print(f"        http://{ip}:5000{tag}")
+        else:
+            print("  [+] on your PHONE (same Wi-Fi): http://<this-computer-ip>:5000")
+        print("  [!] Anyone who can reach that address can use the app (it holds")
+        print("      your data). Keep it to your own devices; close it (Ctrl+C)")
+        print("      when done.")
     else:
         print(f"  [+] console online at {local_url}")
         print("  [+] 100% local. To open it on your phone, set PIS_LAN=1.")
