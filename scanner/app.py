@@ -7,7 +7,6 @@ Everything stays on your machine; the server only listens on localhost.
 Pages:
   /            dashboard — add accounts, run a scan, see each profile
   /profile/... one account's profile: services, findings, saved files/pictures
-  /recover     official password-reset links to get back into your accounts
 """
 
 from __future__ import annotations
@@ -221,7 +220,7 @@ padding-top:10px}}
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
 <a href="/search">▸ search</a><a href="/export">▸ export</a>
-<a href="/recover">▸ recover</a><a href="/logout">▸ lock</a>
+<a href="/logout">▸ lock</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -630,10 +629,9 @@ def profile(folder):
         find_rows += (f"<tr><td>{escape(h['severity'].upper())}</td>"
                       f"<td>{escape(h['kind'])}</td>"
                       f"<td><code>{escape(str(h['value']))}</code></td>"
-                      f"<td>{escape(h['location'])}</td>"
-                      f"<td>{escape(h['advice'])}</td></tr>")
+                      f"<td>{escape(h['location'])}</td></tr>")
     find_html = (f"<table><tr><th>Severity</th><th>Type</th><th>Value</th>"
-                 f"<th>Where</th><th>Advice</th></tr>{find_rows}</table>"
+                 f"<th>Where</th></tr>{find_rows}</table>"
                  if find_rows else "<p class='muted'>No sensitive items found.</p>")
 
     # Personal info found (contact/identity), grouped and de-duplicated.
@@ -770,8 +768,7 @@ def profile(folder):
     {susp_html}
 
     <h2>Personal info found <span class="badge">{d.get('personal_info_count',0)}</span></h2>
-    <p class="muted">Contact &amp; identity details that appear in this inbox.
-    Remove or secure anything you don't want stored in email.</p>
+    <p class="muted">Contact &amp; identity details that appear in this inbox.</p>
     {pi_html}
 
     <h2>Services &amp; accounts <span class="badge">{d.get('service_count',0)}</span></h2>
@@ -945,47 +942,6 @@ def search():
     return render("Search", body)
 
 
-@app.route("/recover")
-def recover():
-    from .recovery import recovery_url
-
-    accounts = []
-    if os.path.exists(_acct_path()):
-        try:
-            accounts = load_accounts(_acct_path())
-        except Exception:
-            accounts = []
-
-    rows = ""
-    for a in accounts:
-        url = recovery_url(a.email)
-        if url:
-            link = f'<a href="{escape(url)}" target="_blank" rel="noopener">Reset password →</a>'
-        else:
-            link = ('<span class="muted">Open your provider\'s sign-in page and '
-                    'click “Forgot password”.</span>')
-        rows += f"<tr><td>{escape(a.email)}</td><td>{link}</td></tr>"
-    if not rows:
-        rows = '<tr><td colspan="2" class="muted">Add accounts first.</td></tr>'
-
-    body = f"""
-    <h1>Recover access to your accounts</h1>
-    <div class="card">
-    <p>The safe, reliable way back into your own email is your provider's
-    official password-reset flow. It verifies it's you (backup email, phone, or
-    security questions) and lets you set a new password — and it works even when
-    you've completely forgotten the old one.</p>
-    <p class="muted">Guessing passwords by hand or with a tool doesn't work on
-    modern email: a handful of wrong tries locks the account and can get your
-    device blocked. Reset is faster and won't lock you out.</p>
-    </div>
-    <table><tr><th>Account</th><th>Official recovery</th></tr>{rows}</table>
-    <p class="muted">Tip: after resetting, save the new password in a password
-    manager and turn on two-factor authentication.</p>
-    """
-    return render("Recover access", body)
-
-
 @app.route("/update", methods=["POST"])
 def update_app():
     from .update import update
@@ -1108,10 +1064,10 @@ def _services_rows(d):
 
 
 def _findings_rows(d):
-    rows = [("severity", "type", "value", "where", "advice")]
+    rows = [("severity", "type", "value", "where")]
     for h in d.get("sensitive_findings", []):
         rows.append((h.get("severity", ""), h.get("kind", ""), h.get("value", ""),
-                     h.get("location", ""), h.get("advice", "")))
+                     h.get("location", "")))
     return rows
 
 
