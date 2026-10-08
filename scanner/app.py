@@ -48,9 +48,21 @@ def _is_owner(user=None) -> bool:
     return (user or _user() or "").strip().lower() == OWNER_USERNAME
 
 
-def _user_dir():
+def _data_user():
+    """Whose data the pages should show.
+
+    Normally the signed-in user. If the OWNER is 'looking through' another
+    account (view-as), it's that account instead — read-only.
+    """
+    va = session.get("view_as")
+    if va and _is_owner():
+        return va
+    return _user()
+
+
+def _user_dir(user=None):
     from .users import user_dirname
-    d = os.path.join(DATA_ROOT, user_dirname(_user() or "nobody"))
+    d = os.path.join(DATA_ROOT, user_dirname(user or _data_user() or "nobody"))
     os.makedirs(d, exist_ok=True)
     try:
         os.chmod(d, 0o700)
@@ -59,14 +71,21 @@ def _user_dir():
     return d
 
 
-def _acct_path():
-    return os.path.join(_user_dir(), "accounts.txt")
+def _acct_path(user=None):
+    return os.path.join(_user_dir(user), "accounts.txt")
 
 
-def _out_dir():
-    d = os.path.join(_user_dir(), "inventory")
+def _out_dir(user=None):
+    d = os.path.join(_user_dir(user), "inventory")
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def _readonly_block():
+    """While the owner is viewing another account, block any changes."""
+    if session.get("view_as") and _is_owner():
+        return redirect(url_for("index"))
+    return None
 
 
 # --- app login (protects everything behind one password) ------------------
@@ -362,7 +381,14 @@ try{if(sessionStorage.getItem('srIntro')==='1'){document.documentElement.classLi
 
 
 def render(title: str, body: str) -> str:
-    ownernav = '<a href="/invites">▸ invite codes</a>' if _is_owner() else ""
+    ownernav = ('<a href="/users">▸ users</a><a href="/invites">▸ invite codes</a>'
+                if _is_owner() else "")
+    va = session.get("view_as")
+    if va and _is_owner():
+        body = (f'<div class="card" style="border-color:var(--amber)">'
+                f'<b style="color:var(--amber)">👁 Viewing {escape(va)}\'s data</b> '
+                f'<span class="muted">(read-only)</span> · '
+                f'<a href="/stopview">exit this view</a></div>' + body)
     return PAGE.format(title=escape(title), body=body, ownernav=ownernav,
                        intro=INTRO_HTML)
 
@@ -638,6 +664,84 @@ def logout():
     return redirect(url_for("login"))
 
 
+def _user_stats(username: str) -> dict:
+    """Quick totals for a user, read straight from their saved reports."""
+    from .users import user_dirname
+    base = os.path.join(DATA_ROOT, user_dirname(username))
+    accts = 0
+    try:
+        accts = len(load_accounts(os.path.join(base, "accounts.txt")))
+    except Exception:
+        accts = 0
+    scanned = services = findings = 0
+    inv = os.path.join(base, "inventory")
+    if os.path.isdir(inv):
+        for folder in os.listdir(inv):
+            rp = os.path.join(inv, folder, "report.json")
+            if os.path.exists(rp):
+                try:
+                    with open(rp) as fh:
+                        d = json.load(fh)
+                    scanned += 1
+                    services += int(d.get("service_count", 0))
+                    findings += int(d.get("sensitive_count", 0))
+                except Exception:
+                    pass
+    return {"email_accounts": accts, "scanned": scanned,
+            "services": services, "findings": findings}
+
+
+@app.route("/users")
+def users_admin():
+    from .users import load_users
+    if not _is_owner():
+        abort(403)
+    rows = ""
+    for key, rec in sorted(load_users(USERS_PATH).items()):
+        name = rec.get("username", key)
+        s = _user_stats(name)
+        owner_here = name.strip().lower() == OWNER_USERNAME
+        badge = ' <span class="tag recent">owner</span>' if owner_here else ""
+        action = ("<span class=\"muted\">you</span>" if owner_here else
+                  f'<a href="{url_for("users_view", username=name)}">'
+                  f'<button class="small">look through →</button></a>')
+        rows += (f"<tr><td>{escape(name)}{badge}</td>"
+                 f"<td>{s['email_accounts']}</td><td>{s['scanned']}</td>"
+                 f"<td>{s['services']}</td><td>{s['findings']}</td>"
+                 f"<td>{action}</td></tr>")
+    if not rows:
+        rows = '<tr><td colspan="6" class="muted">No accounts yet.</td></tr>'
+    body = f"""
+    <h1>Users</h1>
+    <div class="card">
+    <p class="muted">Everyone who has an account on this SpeedRunner. Click
+    <b>look through</b> to view that person's email accounts, scans and findings
+    (read-only). Exit the view to come back to your own.</p>
+    <table>
+      <tr><th>Username</th><th>Email accounts</th><th>Scanned</th>
+          <th>Services</th><th>Findings</th><th></th></tr>
+      {rows}
+    </table>
+    </div>"""
+    return render("Users", body)
+
+
+@app.route("/users/<username>/view")
+def users_view(username):
+    from .users import load_users
+    if not _is_owner():
+        abort(403)
+    if (username or "").strip().lower() in load_users(USERS_PATH):
+        session["view_as"] = username.strip()
+    return redirect(url_for("index"))
+
+
+@app.route("/stopview")
+def stop_view():
+    session.pop("view_as", None)
+    return redirect(url_for("users_admin"))
+
+
 @app.route("/invites", methods=["GET", "POST"])
 def invites():
     from .invites import create_code, list_codes, revoke, delete_code
@@ -720,6 +824,8 @@ def invites():
 
 @app.route("/accounts/add", methods=["POST"])
 def add_account():
+    if (r := _readonly_block()) is not None:
+        return r
     email = (request.form.get("email") or "").strip()
     password = (request.form.get("password") or "").strip()
     if email and password:
@@ -729,6 +835,8 @@ def add_account():
 
 @app.route("/accounts/edit", methods=["POST"])
 def edit_account():
+    if (r := _readonly_block()) is not None:
+        return r
     original = (request.form.get("original_email") or "").strip()
     email = (request.form.get("email") or "").strip()
     password = (request.form.get("password") or "").strip()
@@ -745,6 +853,8 @@ def edit_account():
 
 @app.route("/accounts/delete", methods=["POST"])
 def remove_account():
+    if (r := _readonly_block()) is not None:
+        return r
     import shutil
     email = (request.form.get("email") or "").strip()
     if email:
@@ -808,6 +918,8 @@ def _start_scan(only_email=None, save_attachments=False):
 
 @app.route("/accounts/rescan", methods=["POST"])
 def rescan_account():
+    if (r := _readonly_block()) is not None:
+        return r
     email = (request.form.get("email") or "").strip()
     save = bool(request.form.get("attachments"))
     if email:
@@ -817,6 +929,8 @@ def rescan_account():
 
 @app.route("/scan", methods=["POST"])
 def scan():
+    if (r := _readonly_block()) is not None:
+        return r
     _start_scan(save_attachments=bool(request.form.get("attachments")))
     return redirect(url_for("index"))
 

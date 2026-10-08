@@ -407,8 +407,21 @@ def test_multiuser_login_and_isolation():
                  follow_redirects=True)
         assert b"a@x.com" not in bob.get("/").data          # isolation
         assert b"a@x.com" in alice.get("/").data
-        # bob is NOT the owner → no invite page for him.
+        # bob is NOT the owner → no invite/users pages for him.
         assert bob.get("/invites").status_code == 403
+        assert bob.get("/users").status_code == 403
+
+        # Owner can list users and look through bob's (empty) data read-only.
+        assert b"bob" in alice.get("/users").data
+        alice.get("/users/bob/view")                       # start viewing bob
+        home = alice.get("/").data
+        assert b"Viewing bob" in home                       # banner shown
+        assert b"a@x.com" not in home                       # shows bob's data, not alice's
+        # While viewing, the owner cannot change the viewed account.
+        alice.post("/accounts/add", data={"email": "x@y.com", "password": "pw"})
+        assert b"x@y.com" not in alice.get("/").data         # add was blocked
+        alice.get("/stopview")                               # back to own data
+        assert b"a@x.com" in alice.get("/").data
 
         # Wrong login rejected (shown via a rotating roast), right login works.
         wrong = a.app.test_client().post(
