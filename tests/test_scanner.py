@@ -38,12 +38,15 @@ def test_ssn_detected():
 def test_seed_phrase_flagged_and_visible_at_full():
     phrase = ("legal winner thank year wave sausage worth useful legal "
               "winner thank yellow")
-    findings = scan_sensitive(phrase)
+    # Needs crypto context nearby (otherwise 12 prose words would false-positive).
+    findings = scan_sensitive("my wallet recovery phrase " + phrase)
     seed = [f for f in findings if f.kind == "seed_phrase"]
     assert seed, "seed phrase should be flagged"
-    # Full detail shows the whole phrase; redact masks it.
+    # Full detail shows the matched phrase; redact masks it.
     assert render_value(seed[0], "full") == phrase
     assert render_value(seed[0], "redact").startswith("••••")
+    # And prose WITHOUT crypto context is NOT flagged as a seed phrase.
+    assert "seed_phrase" not in _kinds(phrase + " and more random words here now")
 
 
 def test_password_label_detected():

@@ -91,9 +91,23 @@ _TAX_DOC_RE = re.compile(
     re.IGNORECASE)
 
 
+def _in_url(text: str, start: int, end: int) -> bool:
+    """True if the match at [start:end] is part of a URL / query string."""
+    before = text[max(0, start - 40):start]
+    if "http" in before or "www." in before or ".com/" in before:
+        return True
+    if start > 0 and text[start - 1] in "=/?&.:#":
+        return True
+    if end < len(text) and text[end] in "=/?&#":
+        return True
+    return False
+
+
 def _find_cards(text: str) -> List[Finding]:
     out: List[Finding] = []
     for m in _CARD_RE.finditer(text):
+        if _in_url(text, m.start(), m.end()):
+            continue  # a number inside a link/tracking URL, not a card
         digits = re.sub(r"[ -]", "", m.group())
         if 13 <= len(digits) <= 19 and _luhn_ok(digits):
             out.append(
@@ -108,9 +122,41 @@ def _find_cards(text: str) -> List[Finding]:
     return out
 
 
+_PW_INSTRUCTION = re.compile(
+    r"(reset|forgot|change|create|set|update|new|choose|enter your|your new)\s+"
+    r"(?:your\s+)?(?:password|passwd)", re.IGNORECASE)
+
+
+def _find_passwords(text: str) -> List[Finding]:
+    """Real plaintext passwords only — skip reset links and instructions."""
+    out: List[Finding] = []
+    for m in _PASSWORD_LABEL_RE.finditer(text):
+        value = m.group(1)
+        # Skip "reset/forgot/change your password" instruction emails.
+        pre = text[max(0, m.start() - 25):m.start() + 8]
+        if _PW_INSTRUCTION.search(pre):
+            continue
+        # Skip when the "value" is actually a URL / link.
+        if value.lower().startswith(("http", "www.")) or "://" in value or "/" in value:
+            continue
+        out.append(Finding("password", value, "high",
+                           "A labeled password in plaintext. Change it and use a "
+                           "password manager."))
+    return out
+
+
+_SEED_CONTEXT = re.compile(
+    r"(seed|recovery|mnemonic|wallet|private\s*key|backup\s*phrase|bip-?39|"
+    r"metamask|ledger|trezor|coinbase|crypto)", re.IGNORECASE)
+
+
 def _find_seed(text: str) -> List[Finding]:
     out: List[Finding] = []
     for m in _SEED_RE.finditer(text):
+        # Require crypto context nearby, or 12+ random words in prose would match.
+        near = text[max(0, m.start() - 60):m.start()]
+        if not _SEED_CONTEXT.search(near):
+            continue
         out.append(
             Finding(
                 "seed_phrase",
@@ -151,9 +197,7 @@ SENSITIVE_DETECTORS: List[Tuple[str, Callable[[str], List[Finding]]]] = [
                             "A private key block. Rotate it and never email keys.")),
     ("eth_key", _simple(_ETH_KEY_RE, "crypto_private_key", "high",
                         "Looks like a 32-byte hex private key. Treat as compromised.")),
-    ("password", _group1(_PASSWORD_LABEL_RE, "password", "high",
-                         "A labeled password in plaintext. Change it and use a "
-                         "password manager.")),
+    ("password", _find_passwords),
     ("gift_card", _group1(_GIFTCARD_RE, "gift_card", "medium",
                           "Possible gift card / redemption code — still has value.")),
     ("ein", _group1(_EIN_RE, "ein", "medium",

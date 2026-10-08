@@ -299,20 +299,35 @@ class EmailSource:
             self.total = all_total
 
             emitted = 0
+            BATCH = 40  # fetch many messages per round-trip (big speedup)
             for mbox, ids in plan:
                 if not self._select(conn, mbox):
                     continue
-                for msg_id in reversed(ids):  # newest first within each folder
-                    if self.cfg.max_messages and emitted >= self.cfg.max_messages:
+                order = list(reversed(ids))  # newest first within each folder
+                if self.cfg.max_messages:
+                    remaining = self.cfg.max_messages - emitted
+                    if remaining <= 0:
                         return
-                    typ, msg_data = conn.fetch(msg_id, "(RFC822)")
-                    if typ != "OK" or not msg_data or not msg_data[0]:
+                    order = order[:remaining]
+                for i in range(0, len(order), BATCH):
+                    chunk = order[i:i + BATCH]
+                    id_set = b",".join(
+                        c if isinstance(c, bytes) else str(c).encode() for c in chunk)
+                    try:
+                        typ, msg_data = conn.fetch(id_set, "(BODY.PEEK[])")
+                    except Exception:
                         continue
-                    raw = msg_data[0][1]
-                    msg = email.message_from_bytes(raw)
-                    emitted += 1
-                    uid = f"{mbox}:{msg_id.decode() if isinstance(msg_id, bytes) else msg_id}"
-                    yield self._record(msg, uid)
+                    if typ != "OK" or not msg_data:
+                        continue
+                    for part in msg_data:
+                        if not isinstance(part, tuple) or not part[1]:
+                            continue
+                        try:
+                            msg = email.message_from_bytes(part[1])
+                        except Exception:
+                            continue
+                        emitted += 1
+                        yield self._record(msg, f"{mbox}:{emitted}")
         finally:
             try:
                 conn.close()

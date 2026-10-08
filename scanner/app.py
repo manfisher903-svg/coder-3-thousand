@@ -611,15 +611,23 @@ def profile(folder):
         abort(404)
     d = json.load(open(report))
 
-    # Services by category
+    # Services by category — each links to the real website.
+    def _site_link(e):
+        doms = e.get("domains", [])
+        if doms:
+            d0 = doms[0]
+            return (f'<a href="https://{escape(d0)}" target="_blank" '
+                    f'rel="noopener">{escape(e["brand"])} ↗</a> '
+                    f'<span class="muted">{escape(", ".join(doms))}</span>')
+        return f'<b>{escape(e["brand"])}</b>'
+
     svc_html = ""
     for cat in sorted(d.get("services_by_category", {})):
         entries = d["services_by_category"][cat]
         items = "".join(
-            f"<li><b>{escape(e['brand'])}</b> "
-            f"<span class='muted'>{escape(', '.join(e.get('domains', [])))}</span> "
-            f"· {e['message_count']} msg</li>" for e in entries)
-        svc_html += f"<h3>{escape(cat.title())} <span class='badge'>{len(entries)}</span></h3><ul>{items}</ul>"
+            f"<li>{_site_link(e)} · {e['message_count']} msg</li>" for e in entries)
+        svc_html += (f"<h3>{escape(cat.title())} <span class='badge'>{len(entries)}"
+                     f"</span></h3><ul>{items}</ul>")
     if not svc_html:
         svc_html = "<p class='muted'>No services detected.</p>"
 
