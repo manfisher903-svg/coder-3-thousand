@@ -80,6 +80,19 @@ _AOL = _guide(
         "Save, then Re-scan.",
     ])
 
+_COMCAST = _guide(
+    "Comcast / Xfinity", "https://www.xfinity.com/support/articles/third-party-email-access",
+    [
+        "Sign in at xfinity.com (or connect.xfinity.com).",
+        "Open Settings → Security (or My Account → Email Settings).",
+        "Turn ON “Third Party Access Security” (allow external email programs).",
+        "Use your NORMAL Xfinity password in SpeedRunner — Comcast has no app "
+        "password.",
+        "Click Edit on this account, confirm the password, Save, then Re-scan.",
+    ],
+    "Comcast blocks mail apps until “Third Party Access” is turned on; it uses "
+    "your normal password, not an app password.")
+
 _POP_LEGACY = _guide(
     "NetZero / Juno", "",
     [
@@ -104,6 +117,8 @@ for d in ("icloud.com", "me.com", "mac.com"):
     _BY_DOMAIN[d] = _APPLE
 for d in ("aol.com", "verizon.net"):
     _BY_DOMAIN[d] = _AOL
+for d in ("comcast.net",):
+    _BY_DOMAIN[d] = _COMCAST
 for d in ("netzero.net", "netzero.com", "juno.com"):
     _BY_DOMAIN[d] = _POP_LEGACY
 

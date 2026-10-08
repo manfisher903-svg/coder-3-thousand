@@ -735,16 +735,21 @@ def profile(folder):
                       '<p class="muted">A mainstream provider (Gmail/Yahoo/Outlook) '
                       'supports full-folder IMAP and scans completely.</p></div>')
         else:
+            from .setup_help import get_setup_guide
+            g = get_setup_guide(d.get("account") or folder)
+            steps = "".join(f"<li>{escape(s)}</li>" for s in g["steps"])
+            link = (f'<p>➜ <a href="{escape(g["url"])}" target="_blank" '
+                    f'rel="noopener">Open {escape(g["provider"])} settings</a></p>'
+                    if g.get("url") else "")
             banner = ('<div class="card" style="border-color:var(--amber)">'
                       '<b class="warn">The login worked, but 0 messages were read.</b>'
-                      '<p class="muted">The app already scans every folder and all '
-                      'of time, so this usually means:</p>'
-                      '<ul>'
-                      '<li>This account genuinely has no mail in it, or</li>'
-                      '<li>IMAP isn\'t fully enabled. For Gmail: Settings → '
-                      'Forwarding and POP/IMAP → <b>Enable IMAP</b>. Yahoo/Outlook '
-                      'need an <b>app password</b> too.</li>'
-                      '</ul></div>')
+                      '<p class="muted">The app scans every folder and all of time, '
+                      'so this means either the account has no mail on the server, '
+                      'or the provider is only exposing part of it. First: open its '
+                      '<b>webmail</b> and confirm there are actually emails in the '
+                      'Inbox.</p>'
+                      f'<p class="muted">Setup for {escape(g["provider"])}:</p>'
+                      f'<ol>{steps}</ol>{link}</div>')
     elif d.get("service_count", 0) == 0 and d.get("sensitive_count", 0) == 0:
         banner = (f'<div class="card" style="border-color:var(--amber)">'
                   f'<b class="warn">Read {scanned_n} messages but matched nothing.</b>'

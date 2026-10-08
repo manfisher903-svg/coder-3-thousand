@@ -212,7 +212,22 @@ class EmailSource:
                          or n.endswith("Trash")]
             return preferred or ["[Gmail]/All Mail"]
 
+        # Always make sure INBOX is attempted (some servers list it oddly).
+        if not any(n.upper() == "INBOX" for n in names):
+            names.insert(0, "INBOX")
         return names or ["INBOX"]
+
+    @staticmethod
+    def _select(conn, mbox):
+        """SELECT a mailbox, tolerating servers picky about quoting."""
+        for name in (f'"{mbox}"', mbox):
+            try:
+                typ, _ = conn.select(name, readonly=True)
+                if typ == "OK":
+                    return True
+            except Exception:
+                continue
+        return False
 
     def iter_messages(self) -> Iterator[MessageRecord]:
         if getattr(self.cfg, "protocol", "imap") == "pop3":
@@ -264,10 +279,12 @@ class EmailSource:
             plan = []  # (mailbox, [ids])
             for mbox in mailboxes:
                 try:
-                    typ, _ = conn.select(f'"{mbox}"', readonly=True)
-                    if typ != "OK":
+                    if not self._select(conn, mbox):
                         continue
                     typ, data = conn.search(None, self._search_criteria())
+                    # Some servers reject SINCE/charset — fall back to ALL.
+                    if typ != "OK":
+                        typ, data = conn.search(None, "ALL")
                     if typ != "OK" or not data or data[0] is None:
                         continue
                     ids = data[0].split()
@@ -283,11 +300,7 @@ class EmailSource:
 
             emitted = 0
             for mbox, ids in plan:
-                try:
-                    typ, _ = conn.select(f'"{mbox}"', readonly=True)
-                    if typ != "OK":
-                        continue
-                except Exception:
+                if not self._select(conn, mbox):
                     continue
                 for msg_id in reversed(ids):  # newest first within each folder
                     if self.cfg.max_messages and emitted >= self.cfg.max_messages:
