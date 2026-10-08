@@ -26,6 +26,10 @@ from .config import Config
 
 USERS_PATH = os.environ.get("PIS_USERS", ".pis_users.json")
 INVITES_PATH = os.environ.get("PIS_INVITES", ".pis_invites.json")
+# The ONE owner account. Only this username is ever the owner — everyone else
+# is a normal user, regardless of any stored flag. (Username only; the password
+# is set by whoever registers it and is stored hashed, never in the code.)
+OWNER_USERNAME = os.environ.get("PIS_OWNER", "650rio").strip().lower()
 DATA_ROOT = os.environ.get("PIS_DATA", "data")   # per-user data lives here
 SECRET_PATH = ".pis_secret"
 
@@ -39,8 +43,9 @@ def _user():
 
 
 def _is_owner(user=None) -> bool:
-    from .users import is_owner
-    return is_owner(USERS_PATH, user or _user() or "")
+    # Authority is the username alone: only OWNER_USERNAME is ever the owner,
+    # no matter what any stored flag says.
+    return (user or _user() or "").strip().lower() == OWNER_USERNAME
 
 
 def _user_dir():
@@ -530,20 +535,20 @@ def scan_status():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    from .users import add_user, username_taken, user_count
+    from .users import add_user, username_taken
     from .invites import check_valid, redeem
     from .roasts import pick_roast
 
-    # The very first account on this instance becomes the OWNER and needs no
-    # invite code. After that, registration requires a valid code.
-    first_user = user_count(USERS_PATH) == 0
     msg = ""
     if request.method == "POST":
         u = request.form.get("username", "")
         pw = request.form.get("password", "")
         pw2 = request.form.get("password2", "")
         code = request.form.get("code", "")
-        code_ok, code_msg = (True, "ok") if first_user else check_valid(
+        # Only the owner account may be created without an invite code; it is
+        # also the only account that is ever the owner.
+        wants_owner = u.strip().lower() == OWNER_USERNAME
+        code_ok, code_msg = (True, "ok") if wants_owner else check_valid(
             INVITES_PATH, code)
         if pw != pw2:
             msg = "The two passwords don't match."
@@ -554,32 +559,24 @@ def register():
         elif not code_ok:
             msg = code_msg
         else:
-            ok, m = add_user(USERS_PATH, u, pw, owner=first_user)
+            ok, m = add_user(USERS_PATH, u, pw, owner=wants_owner)
             if ok:
-                if not first_user:
+                if not wants_owner:
                     redeem(INVITES_PATH, code, u.strip())
                 session["user"] = u.strip()
                 session.permanent = True
                 return redirect(url_for("index"))
             msg = m
     warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
-    if first_user:
-        intro = ("""<p class="muted">You're the first account here, so this
-        becomes the <b>owner</b> — you'll be able to generate invite codes for
-        other people.</p>""")
-        code_field = ""
-    else:
-        intro = ('<p class="muted">You need an <b>invite code</b> from the '
-                 'owner to create an account.</p>')
-        code_field = ('<p><input name="code" placeholder="invite code '
-                      '(e.g. SR-ABCD-EFGH)" style="min-width:260px" required></p>')
     body = f"""
     <h1>Create your account</h1>
     <div class="card">
-    {intro}
+    <p class="muted">You need an <b>invite code</b> from the owner to create an
+    account.</p>
     {warn}
     <form method="post" action="/register">
-      {code_field}
+      <p><input name="code" placeholder="invite code (e.g. SR-ABCD-EFGH)"
+         style="min-width:260px"></p>
       <p><input name="username" placeholder="choose a username"
          style="min-width:260px" required></p>
       <p><input name="password" type="password" placeholder="password (min 6)"

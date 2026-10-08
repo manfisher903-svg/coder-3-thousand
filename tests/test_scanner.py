@@ -330,6 +330,7 @@ def test_auto_logout_on_inactivity():
     work = tempfile.mkdtemp(); cwd = os.getcwd(); os.chdir(work)
     os.environ["PIS_USERS"] = work + "/.pis_users.json"
     os.environ["PIS_DATA"] = work + "/data"
+    os.environ["PIS_OWNER"] = "user1"      # this test's account is the owner
     os.environ["PIS_TIMEOUT_MIN"] = "30"
     try:
         import scanner.app as a
@@ -344,7 +345,7 @@ def test_auto_logout_on_inactivity():
         assert "/login" in c.get("/").headers.get("Location", "")   # kicked out
     finally:
         os.chdir(cwd); shutil.rmtree(work, ignore_errors=True)
-        for k in ("PIS_USERS", "PIS_DATA", "PIS_TIMEOUT_MIN"):
+        for k in ("PIS_USERS", "PIS_DATA", "PIS_OWNER", "PIS_TIMEOUT_MIN"):
             os.environ.pop(k, None)
         import scanner.app as a
         importlib.reload(a)
@@ -358,6 +359,7 @@ def test_multiuser_login_and_isolation():
     os.environ["PIS_USERS"] = work + "/.pis_users.json"
     os.environ["PIS_DATA"] = work + "/data"
     os.environ["PIS_INVITES"] = work + "/.pis_invites.json"
+    os.environ["PIS_OWNER"] = "alice"      # alice is the designated owner here
     try:
         import scanner.app as a
         importlib.reload(a)
@@ -422,7 +424,7 @@ def test_multiuser_login_and_isolation():
     finally:
         os.chdir(cwd)
         shutil.rmtree(work, ignore_errors=True)
-        for k in ("PIS_USERS", "PIS_DATA", "PIS_INVITES"):
+        for k in ("PIS_USERS", "PIS_DATA", "PIS_INVITES", "PIS_OWNER"):
             os.environ.pop(k, None)
         import scanner.app as a
         importlib.reload(a)

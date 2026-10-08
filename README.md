@@ -83,18 +83,17 @@ SpeedRunner supports an **owner** (admin) account plus **invite codes**, so you
 can run one copy and let specific people in — they don't install anything, they
 just open your link and register with a code you give them.
 
-**Become the owner (one time):**
+**The owner is a fixed account:**
 
-- The **first account** created on an instance automatically becomes the owner.
-  So the very first time you open the app, register your account (e.g.
-  `650rio`) and you're the owner.
-- Already have accounts and want to make yours the owner? Run:
-  ```
-  python -m scanner.make_owner 650rio
-  ```
-  (It promotes an existing user, or creates the account and asks you to set a
-  password privately. Your password is only ever stored **hashed** in the local
-  `.pis_users.json` file — never in the code or the repo.)
+- Ownership is decided by **username**: only the account named **`650rio`** is
+  ever the owner, and no other account can be — regardless of who registers
+  first. Just sign in as `650rio` and you have the owner tools.
+- If that account doesn't exist yet on a machine, create it by registering
+  `650rio` on the Create-account page (the owner account is the only one that
+  doesn't need an invite code), or run `python -m scanner.make_owner`.
+- Your password is only ever stored **hashed** in the local `.pis_users.json`
+  file — never in the code or the repo. (Want a different owner username? Set
+  the `PIS_OWNER` environment variable before starting the app.)
 
 **Generate codes and hand them out:**
 
@@ -105,7 +104,7 @@ just open your link and register with a code you give them.
    **Create account**, enter the code, and register.
 4. You can **turn off** or **delete** any code at any time from that page.
 
-Everyone **except** the first/owner account needs a valid code to register, so
+Everyone **except** the owner account (`650rio`) needs a valid code to register, so
 nobody can sign up without one from you.
 
 > **Where does it run so others can reach it?** For people to use *your* copy,
