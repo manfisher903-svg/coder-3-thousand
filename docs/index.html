@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SpeedRunner — Download</title>
+<style>
+:root{--grn:#27ff99;--grn2:#13c074;--dim:#2f6b52;--panel:#07140e;--amber:#ffb347}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:#02060a;color:var(--grn);font-family:'Courier New',monospace;
+ display:flex;flex-direction:column;align-items:center;justify-content:center;
+ padding:32px 16px;text-align:center}
+.brand{font-size:clamp(34px,9vw,80px);font-weight:900;letter-spacing:4px;
+ text-shadow:0 0 20px rgba(39,255,153,.5);margin:0}
+.cur{animation:blink 1s steps(1) infinite}@keyframes blink{50%{opacity:0}}
+.tag{color:var(--dim);letter-spacing:3px;margin:6px 0 28px;font-size:.9rem}
+.cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;width:100%;
+ max-width:720px}
+.card{flex:1 1 260px;border:1px solid var(--grn2);border-radius:12px;padding:26px 20px;
+ background:var(--panel);box-shadow:inset 0 0 24px rgba(39,255,153,.05)}
+.card h2{margin:.2em 0 .1em;font-size:1.2rem}
+.card .os{font-size:2.4rem;margin-bottom:6px}
+a.btn{display:inline-block;margin-top:14px;padding:13px 22px;border:1px solid var(--grn);
+ border-radius:8px;background:rgba(39,255,153,.12);color:var(--grn);text-decoration:none;
+ font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:.15s}
+a.btn:hover{background:var(--grn);color:#02110b;box-shadow:0 0 16px var(--grn)}
+.note{color:var(--dim);font-size:.82rem;margin-top:10px;line-height:1.5}
+.steps{max-width:620px;margin:34px auto 0;text-align:left;border:1px solid #123;
+ border-radius:10px;padding:18px 22px;background:rgba(39,255,153,.03)}
+.steps h3{margin:.2em 0 .5em;letter-spacing:1px}
+.steps ol{margin:0;padding-left:20px;line-height:1.7;color:#9effcf}
+.warn{color:var(--amber);font-size:.8rem;margin-top:22px;max-width:620px;line-height:1.5}
+footer{margin-top:28px;color:var(--dim);font-size:.75rem}
+</style></head>
+<body>
+  <h1 class="brand">◢ SPEEDRUNNER<span class="cur">_</span></h1>
+  <div class="tag">SCAN YOUR OWN EMAIL FOR EXPOSED PERSONAL INFO</div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="os">🪟</div>
+      <h2>Windows</h2>
+      <a class="btn" href="install-windows.bat" download>Download</a>
+      <div class="note">Nothing to install first — it sets up everything,
+        including its own Python.</div>
+    </div>
+    <div class="card">
+      <div class="os"></div>
+      <h2>Mac</h2>
+      <a class="btn" href="install-mac.command" download>Download</a>
+      <div class="note">If macOS blocks it, right-click the file → Open → Open.</div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <h3>How to install</h3>
+    <ol>
+      <li>Click <b>Download</b> for your computer above.</li>
+      <li><b>Double-click</b> the downloaded file.</li>
+      <li>It downloads SpeedRunner, puts an icon on your Desktop, and opens it
+        in your browser.</li>
+      <li>Create your account and you're in. It auto-updates each time it opens.</li>
+    </ol>
+  </div>
+
+  <div class="warn">⚠ Only scan email accounts you own. SpeedRunner runs entirely
+    on your own computer — nothing is uploaded anywhere.</div>
+
+  <footer>100% local · read-only email access</footer>
+</body></html>
