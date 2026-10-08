@@ -423,6 +423,31 @@ def test_inventory_roundtrip():
     assert "Personal Information Inventory" in md
 
 
+def test_filepass_literal_password():
+    from scanner.filepass import find_password
+    txt = "Your statement is attached. The password to open the PDF is Smith1985."
+    assert find_password(txt) == "Smith1985"
+
+
+def test_filepass_hint_password():
+    from scanner.filepass import find_password
+    txt = ("This document is password protected. "
+           "Your password is your date of birth.")
+    assert find_password(txt).startswith("(hint)")
+
+
+def test_filepass_ignores_reset_links():
+    from scanner.filepass import find_password
+    txt = "Click here to reset your password: https://example.com/reset"
+    assert find_password(txt, require_context=True) is None
+
+
+def test_filepass_detects_encrypted_pdf():
+    from scanner.filepass import is_encrypted
+    assert is_encrypted("doc.pdf", b"%PDF-1.7 /Encrypt 5 0 R trailer")
+    assert not is_encrypted("doc.pdf", b"%PDF-1.7 plain content")
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

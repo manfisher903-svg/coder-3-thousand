@@ -117,6 +117,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
 
             if base.output.save_attachments and rec.attachments and (
                     findings or category != "other"):
+                from .filepass import find_password, is_encrypted
                 att_dir = os.path.join(out_dir, "attachments")
                 os.makedirs(att_dir, exist_ok=True)
                 for att in rec.attachments:
@@ -126,9 +127,35 @@ def scan_one(account: Account, base: Config, out_dir: str,
                         with open(dest, "wb") as fh:
                             fh.write(att.data)
                         os.chmod(dest, 0o600)
-                        inv.attachments.append(os.path.relpath(dest, out_dir))
+                        rel = os.path.relpath(dest, out_dir)
+                        inv.attachments.append(rel)
                     except OSError:
-                        pass
+                        continue
+                    # If the file is locked, pull the password the sender wrote
+                    # in this same email and save it right next to the file.
+                    locked = is_encrypted(att.filename, att.data)
+                    pw = find_password(f"{rec.subject}\n{rec.body_text}",
+                                       require_context=not locked)
+                    if locked or pw:
+                        inv.attachment_passwords.append({
+                            "file": rel,
+                            "encrypted": locked,
+                            "password": pw or "",
+                            "from": rec.sender_email,
+                            "subject": rec.subject[:120],
+                        })
+                        try:
+                            side = dest + ".password.txt"
+                            with open(side, "w", encoding="utf-8") as fh:
+                                fh.write(
+                                    f"File: {os.path.basename(dest)}\n"
+                                    f"Locked/encrypted: {'yes' if locked else 'unknown'}\n"
+                                    f"Password: {pw or '(not stated in the email)'}\n"
+                                    f"From: {rec.sender_email}\n"
+                                    f"Subject: {rec.subject[:120]}\n")
+                            os.chmod(side, 0o600)
+                        except OSError:
+                            pass
             # Report progress often enough for a smooth bar, cheaply.
             if count == 1 or count % 10 == 0:
                 _emit(progress, event="progress", email=account.email,

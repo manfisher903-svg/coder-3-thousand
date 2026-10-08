@@ -218,6 +218,9 @@ background:var(--panel);line-height:1.6}}
 .tag{{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:999px;
 border:1px solid var(--grn2);color:#9effcf;margin:2px 2px 0 0;white-space:nowrap}}
 .tag.recent{{border-color:var(--grn);color:#02110b;background:var(--grn);font-weight:700}}
+.attwrap{{display:inline-block;vertical-align:top;margin:4px;max-width:260px}}
+.pwbox{{margin-top:4px;font-size:.82rem;color:#ffd479;overflow-wrap:anywhere;
+word-break:break-word}}
 pre.card{{white-space:pre-wrap;color:#9effcf;font-size:.85rem}}
 footer{{margin-top:26px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--grn2);
 padding-top:10px}}
@@ -739,16 +742,27 @@ def profile(folder):
     if not susp_html:
         susp_html = "<p class='muted'>No suspicious or phishing emails detected.</p>"
 
-    # Attachments / pictures
+    # Attachments / pictures (with the password for any locked file).
+    pw_by_file = {p.get("file"): p for p in d.get("attachment_passwords", [])}
     att_html = ""
     for rel in d.get("attachments_saved", []):
         safe_rel = rel.replace("\\", "/")
         file_url = url_for("serve_file", folder=folder, path=safe_rel)
         name = os.path.basename(safe_rel)
+        pw = pw_by_file.get(rel)
+        pw_html = ""
+        if pw:
+            val = pw.get("password") or "(not stated in the email)"
+            lock = "🔒 Locked file" if pw.get("encrypted") else "🔑 Password found"
+            pw_html = (f'<div class="pwbox">{lock} · password: '
+                       f'<code>{escape(val)}</code></div>')
         if _is_image(name):
-            att_html += f'<a href="{file_url}"><img class="att" src="{file_url}" alt="{escape(name)}"></a>'
+            att_html += (f'<div class="attwrap"><a href="{file_url}">'
+                         f'<img class="att" src="{file_url}" alt="{escape(name)}">'
+                         f'</a>{pw_html}</div>')
         else:
-            att_html += f'<p>📎 <a href="{file_url}">{escape(name)}</a></p>'
+            att_html += (f'<div class="attwrap"><p>📎 '
+                         f'<a href="{file_url}">{escape(name)}</a></p>{pw_html}</div>')
     if not att_html:
         att_html = "<p class='muted'>No files or pictures saved for this account.</p>"
 

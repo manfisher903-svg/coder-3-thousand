@@ -60,6 +60,7 @@ class Inventory:
         self.services: Dict[str, ServiceEntry] = {}
         self.sensitive: List[SensitiveHit] = []
         self.attachments: List[str] = []
+        self.attachment_passwords: List[dict] = []  # {file,encrypted,password,from,subject}
         self.sources_scanned: int = 0
         self.suspicious: List[dict] = []          # flagged phishing/scam emails
         self.name_counts: Dict[str, int] = {}     # candidate owner names
@@ -172,6 +173,7 @@ class Inventory:
             "suspicious_emails": suspicious,
             "suspicious_count": len(suspicious),
             "attachments_saved": self.attachments,
+            "attachment_passwords": self.attachment_passwords,
         }
 
     def to_markdown(self) -> str:
