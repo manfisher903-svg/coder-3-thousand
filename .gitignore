@@ -23,4 +23,5 @@ venv/
 .pis_auth.json
 .pis_secret
 .pis_users.json
+.pis_invites.json
 data/

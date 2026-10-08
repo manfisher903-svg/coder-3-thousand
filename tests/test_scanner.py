@@ -351,12 +351,13 @@ def test_auto_logout_on_inactivity():
 
 
 def test_multiuser_login_and_isolation():
-    import tempfile, json, importlib, shutil
+    import tempfile, json, importlib, shutil, re
     work = tempfile.mkdtemp()
     cwd = os.getcwd()
     os.chdir(work)
     os.environ["PIS_USERS"] = work + "/.pis_users.json"
     os.environ["PIS_DATA"] = work + "/data"
+    os.environ["PIS_INVITES"] = work + "/.pis_invites.json"
     try:
         import scanner.app as a
         importlib.reload(a)
@@ -384,12 +385,28 @@ def test_multiuser_login_and_isolation():
 
         # alice adds an account → lands in HER data dir only.
         alice.post("/accounts/add", data={"email": "a@x.com", "password": "pw"})
-        # Register bob; bob must NOT see alice's account.
+
+        # alice is the first user → owner, and can reach the invite page.
+        assert b"Invite codes" in alice.get("/invites").data
+        # Someone WITHOUT a code cannot register now.
+        nocode = a.app.test_client().post(
+            "/register", data={"username": "carol", "password": "secret3",
+                               "password2": "secret3"})
+        assert b"invite code" in nocode.data and b"Your email accounts" not in nocode.data
+        # Owner generates a code; bob registers with it.
+        gen = alice.post("/invites", data={"action": "generate", "uses": "1"})
+        m = re.search(rb"SR-[A-Z2-9]{4}-[A-Z2-9]{4}", gen.data)
+        assert m, "invite code not shown"
+        code = m.group(0).decode()
+
         bob = a.app.test_client()
         bob.post("/register", data={"username": "bob", "password": "secret2",
-                                    "password2": "secret2"}, follow_redirects=True)
+                                    "password2": "secret2", "code": code},
+                 follow_redirects=True)
         assert b"a@x.com" not in bob.get("/").data          # isolation
         assert b"a@x.com" in alice.get("/").data
+        # bob is NOT the owner → no invite page for him.
+        assert bob.get("/invites").status_code == 403
 
         # Wrong login rejected (shown via a rotating roast), right login works.
         wrong = a.app.test_client().post(
@@ -405,7 +422,7 @@ def test_multiuser_login_and_isolation():
     finally:
         os.chdir(cwd)
         shutil.rmtree(work, ignore_errors=True)
-        for k in ("PIS_USERS", "PIS_DATA"):
+        for k in ("PIS_USERS", "PIS_DATA", "PIS_INVITES"):
             os.environ.pop(k, None)
         import scanner.app as a
         importlib.reload(a)
@@ -421,6 +438,40 @@ def test_inventory_roundtrip():
     assert "banking" in d["services_by_category"]
     md = inv.to_markdown()
     assert "Personal Information Inventory" in md
+
+
+def test_owner_and_invite_flow():
+    import tempfile, os
+    from scanner.users import add_user, is_owner, user_count, set_owner
+    from scanner import invites
+    d = tempfile.mkdtemp()
+    users = os.path.join(d, "users.json")
+    codes = os.path.join(d, "invites.json")
+
+    # First user is set up as owner.
+    assert user_count(users) == 0
+    ok, _ = add_user(users, "650rio", "Luna223$", owner=True)
+    assert ok and is_owner(users, "650rio")
+
+    # Owner generates a single-use code; it validates, then is used up.
+    code = invites.create_code(codes, "650rio", label="for Sam", max_uses=1)
+    assert code.startswith("SR-")
+    assert invites.check_valid(codes, code)[0] is True
+    ok, _ = invites.redeem(codes, code, "sam")
+    assert ok
+    assert invites.check_valid(codes, code)[0] is False  # used up
+
+    # A bogus code is rejected; a revoked code stops working.
+    assert invites.check_valid(codes, "SR-XXXX-YYYY")[0] is False
+    code2 = invites.create_code(codes, "650rio", max_uses=5)
+    invites.revoke(codes, code2)
+    assert invites.check_valid(codes, code2)[0] is False
+
+    # Promotion of an existing user works.
+    add_user(users, "helper", "pw1234")
+    assert not is_owner(users, "helper")
+    set_owner(users, "helper", True)
+    assert is_owner(users, "helper")
 
 
 def test_filepass_literal_password():

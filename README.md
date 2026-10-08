@@ -66,6 +66,43 @@ Nothing to re-send.
 > under the repo's **Settings → General → Danger Zone → Change visibility** on
 > GitHub.
 
+## Owner account + invite codes (controlling who can sign up)
+
+SpeedRunner supports an **owner** (admin) account plus **invite codes**, so you
+can run one copy and let specific people in — they don't install anything, they
+just open your link and register with a code you give them.
+
+**Become the owner (one time):**
+
+- The **first account** created on an instance automatically becomes the owner.
+  So the very first time you open the app, register your account (e.g.
+  `650rio`) and you're the owner.
+- Already have accounts and want to make yours the owner? Run:
+  ```
+  python -m scanner.make_owner 650rio
+  ```
+  (It promotes an existing user, or creates the account and asks you to set a
+  password privately. Your password is only ever stored **hashed** in the local
+  `.pis_users.json` file — never in the code or the repo.)
+
+**Generate codes and hand them out:**
+
+1. Signed in as the owner, click **▸ invite codes** in the top bar.
+2. Click **Generate code** (optionally add a note like "for Sam", and set how
+   many people can use it). You get a code like `SR-ABCD-EFGH`.
+3. Give the person your SpeedRunner link **and** the code. They go to
+   **Create account**, enter the code, and register.
+4. You can **turn off** or **delete** any code at any time from that page.
+
+Everyone **except** the first/owner account needs a valid code to register, so
+nobody can sign up without one from you.
+
+> **Where does it run so others can reach it?** For people to use *your* copy,
+> the app has to be reachable by them. The simplest private option is the phone
+> mode below over a shared [Tailscale](https://tailscale.com) network; for wider
+> access you'd host it on a small server with HTTPS. (Each running copy keeps its
+> own owner and codes — they aren't shared between machines.)
+
 ## Using it on your phone
 
 SpeedRunner runs on your computer, but you can **view and use it from your

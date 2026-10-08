@@ -25,6 +25,7 @@ from .accounts import (add_or_update, delete_account, load_accounts,
 from .config import Config
 
 USERS_PATH = os.environ.get("PIS_USERS", ".pis_users.json")
+INVITES_PATH = os.environ.get("PIS_INVITES", ".pis_invites.json")
 DATA_ROOT = os.environ.get("PIS_DATA", "data")   # per-user data lives here
 SECRET_PATH = ".pis_secret"
 
@@ -35,6 +36,11 @@ app = Flask(__name__)
 
 def _user():
     return session.get("user")
+
+
+def _is_owner(user=None) -> bool:
+    from .users import is_owner
+    return is_owner(USERS_PATH, user or _user() or "")
 
 
 def _user_dir():
@@ -199,6 +205,7 @@ button{{padding:9px 16px;border:1px solid var(--grn);border-radius:6px;
 background:rgba(39,255,153,.12);color:var(--grn);font-size:.92rem;cursor:pointer;
 font-family:inherit;letter-spacing:1px;text-transform:uppercase;transition:.15s}}
 button:hover{{background:var(--grn);color:#02110b;box-shadow:0 0 14px var(--grn)}}
+button.small{{padding:4px 9px;font-size:.72rem;letter-spacing:.5px}}
 button.secondary{{border-color:var(--grn2);color:var(--grn2);
 background:rgba(19,192,116,.08)}}
 button.secondary:hover{{background:var(--grn2);color:#02110b;box-shadow:0 0 12px var(--grn2)}}
@@ -230,7 +237,7 @@ padding-top:10px}}
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
 <a href="/search">▸ search</a><a href="/export">▸ export</a>
-<a href="/logout">▸ lock</a>
+{ownernav}<a href="/logout">▸ lock</a>
 </header>{body}
 <footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
@@ -253,7 +260,8 @@ padding-top:10px}}
 
 
 def render(title: str, body: str) -> str:
-    return PAGE.format(title=escape(title), body=body)
+    ownernav = '<a href="/invites">▸ invite codes</a>' if _is_owner() else ""
+    return PAGE.format(title=escape(title), body=body, ownernav=ownernav)
 
 
 def _load_base_config() -> Config:
@@ -436,32 +444,56 @@ def scan_status():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    from .users import add_user, username_taken
+    from .users import add_user, username_taken, user_count
+    from .invites import check_valid, redeem
     from .roasts import pick_roast
+
+    # The very first account on this instance becomes the OWNER and needs no
+    # invite code. After that, registration requires a valid code.
+    first_user = user_count(USERS_PATH) == 0
     msg = ""
     if request.method == "POST":
         u = request.form.get("username", "")
         pw = request.form.get("password", "")
         pw2 = request.form.get("password2", "")
+        code = request.form.get("code", "")
+        code_ok, code_msg = (True, "ok") if first_user else check_valid(
+            INVITES_PATH, code)
         if pw != pw2:
             msg = "The two passwords don't match."
+        elif len(pw or "") < 6:
+            msg = "Password must be at least 6 characters."
         elif username_taken(USERS_PATH, u):
             msg = pick_roast()          # rotating roast when the name is taken
+        elif not code_ok:
+            msg = code_msg
         else:
-            ok, m = add_user(USERS_PATH, u, pw)
+            ok, m = add_user(USERS_PATH, u, pw, owner=first_user)
             if ok:
+                if not first_user:
+                    redeem(INVITES_PATH, code, u.strip())
                 session["user"] = u.strip()
                 session.permanent = True
                 return redirect(url_for("index"))
             msg = m
     warn = f'<p class="warn">{escape(msg)}</p>' if msg else ""
+    if first_user:
+        intro = ("""<p class="muted">You're the first account here, so this
+        becomes the <b>owner</b> — you'll be able to generate invite codes for
+        other people.</p>""")
+        code_field = ""
+    else:
+        intro = ('<p class="muted">You need an <b>invite code</b> from the '
+                 'owner to create an account.</p>')
+        code_field = ('<p><input name="code" placeholder="invite code '
+                      '(e.g. SR-ABCD-EFGH)" style="min-width:260px" required></p>')
     body = f"""
     <h1>Create your account</h1>
     <div class="card">
-    <p class="muted">Each person gets their own private SpeedRunner — your own
-    accounts and scans, locked to your login.</p>
+    {intro}
     {warn}
     <form method="post" action="/register">
+      {code_field}
       <p><input name="username" placeholder="choose a username"
          style="min-width:260px" required></p>
       <p><input name="password" type="password" placeholder="password (min 6)"
@@ -471,7 +503,6 @@ def register():
       <p><button>Create account</button></p>
     </form>
     <p class="muted">Already have one? <a href="/login">Sign in</a>.</p>
-    <p class="muted">Usernames are unique — no two people can use the same one.</p>
     </div>"""
     return render("Create account", body)
 
@@ -510,6 +541,86 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/invites", methods=["GET", "POST"])
+def invites():
+    from .invites import create_code, list_codes, revoke, delete_code
+    if not _is_owner():
+        abort(403)
+    note = ""
+    if request.method == "POST":
+        action = request.form.get("action", "")
+        if action == "generate":
+            label = request.form.get("label", "")
+            try:
+                uses = max(1, int(request.form.get("uses") or 1))
+            except ValueError:
+                uses = 1
+            code = create_code(INVITES_PATH, _user(), label=label, max_uses=uses)
+            note = f"New invite code created: <code>{escape(code)}</code>"
+        elif action == "revoke":
+            revoke(INVITES_PATH, request.form.get("code", ""))
+        elif action == "delete":
+            delete_code(INVITES_PATH, request.form.get("code", ""))
+        if action in ("revoke", "delete"):
+            return redirect(url_for("invites"))
+
+    rows = ""
+    for c in list_codes(INVITES_PATH):
+        color = {"active": "var(--grn)", "used up": "var(--dim)",
+                 "revoked": "var(--red)"}.get(c["status"], "var(--dim)")
+        used_by = ", ".join(escape(u) for u in c.get("used_by", [])) or "—"
+        label = escape(c.get("label") or "")
+        revoke_btn = ""
+        if c["status"] == "active":
+            revoke_btn = (
+                f'<form method="post" style="display:inline" action="/invites">'
+                f'<input type="hidden" name="action" value="revoke">'
+                f'<input type="hidden" name="code" value="{escape(c["code"])}">'
+                f'<button class="small">turn off</button></form>')
+        del_btn = (
+            f'<form method="post" style="display:inline;margin-left:6px" '
+            f'action="/invites">'
+            f'<input type="hidden" name="action" value="delete">'
+            f'<input type="hidden" name="code" value="{escape(c["code"])}">'
+            f'<button class="small">delete</button></form>')
+        rows += (
+            f'<tr><td><code>{escape(c["code"])}</code></td>'
+            f'<td style="color:{color}">{escape(c["status"])}</td>'
+            f'<td>{c["used"]}/{c["max_uses"]}</td>'
+            f'<td>{used_by}</td><td>{label}</td>'
+            f'<td>{revoke_btn}{del_btn}</td></tr>')
+    if not rows:
+        rows = ('<tr><td colspan="6" class="muted">No codes yet — generate one '
+                'above, then share it.</td></tr>')
+
+    note_html = f'<p class="warn" style="color:var(--grn)">{note}</p>' if note else ""
+    body = f"""
+    <h1>Invite codes</h1>
+    <div class="card">
+    <p class="muted">Generate a code and give it to someone. They enter it on the
+    <b>Create account</b> page to register on <b>your</b> SpeedRunner — no app
+    install needed, just the link you share. Turn a code off anytime to block it.</p>
+    {note_html}
+    <form method="post" action="/invites">
+      <input type="hidden" name="action" value="generate">
+      <p><input name="label" placeholder="who is this for? (optional note)"
+         style="min-width:260px"></p>
+      <p>Number of people who can use it:
+         <input name="uses" type="number" value="1" min="1" max="999"
+         style="width:80px"></p>
+      <p><button>Generate code</button></p>
+    </form>
+    </div>
+    <div class="card">
+    <table>
+      <tr><th>Code</th><th>Status</th><th>Used</th><th>Used by</th>
+          <th>Note</th><th></th></tr>
+      {rows}
+    </table>
+    </div>"""
+    return render("Invite codes", body)
 
 
 @app.route("/accounts/add", methods=["POST"])

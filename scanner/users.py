@@ -43,7 +43,8 @@ def valid_username(username: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9._-]{3,32}", username or ""))
 
 
-def add_user(path: str, username: str, password: str) -> Tuple[bool, str]:
+def add_user(path: str, username: str, password: str,
+             owner: bool = False) -> Tuple[bool, str]:
     username = (username or "").strip()
     if not valid_username(username):
         return False, ("Username must be 3–32 characters: letters, numbers, "
@@ -57,7 +58,28 @@ def add_user(path: str, username: str, password: str) -> Tuple[bool, str]:
     h = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _ITER)
     users[username.lower()] = {
         "username": username, "salt": salt.hex(), "hash": h.hex(), "iter": _ITER,
+        "owner": bool(owner),
     }
+    _save(path, users)
+    return True, "ok"
+
+
+def user_count(path: str) -> int:
+    return len(load_users(path))
+
+
+def is_owner(path: str, username: str) -> bool:
+    rec = load_users(path).get((username or "").strip().lower())
+    return bool(rec and rec.get("owner"))
+
+
+def set_owner(path: str, username: str, value: bool = True) -> Tuple[bool, str]:
+    """Promote/demote an existing user to owner. Returns (ok, message)."""
+    users = load_users(path)
+    key = (username or "").strip().lower()
+    if key not in users:
+        return False, f"No such user: {username!r}"
+    users[key]["owner"] = bool(value)
     _save(path, users)
     return True, "ok"
 
