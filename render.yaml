@@ -2,13 +2,13 @@
 # In Render: New + → Blueprint → connect this repo → it reads this file.
 #
 # NOTE: the persistent disk below requires a PAID instance (the free plan has
-# no disk, so accounts/codes/scans would reset on every restart). The "starter"
-# plan is a few dollars a month.
+# no disk, so accounts/codes/scans would reset on every restart). The
+# 0.5c-512mb plan is Render's cheapest paid tier (a few dollars a month).
 services:
   - type: web
     name: speedrunner
     runtime: python
-    plan: starter
+    plan: 0.5c-512mb
     buildCommand: pip install -r requirements.txt
     # ONE worker on purpose: scan progress and per-user state are kept in memory,
     # so a single worker (with threads for concurrency) keeps everything consistent.

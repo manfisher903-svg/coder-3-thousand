@@ -43,7 +43,7 @@ sign in — no install. It stays up even when your laptop is off.
 2. Create a free account at **render.com** and connect your GitHub.
 3. Click **New + → Blueprint**, pick the `coder-3-thousand` repo. Render reads
    `render.yaml` and sets everything up (server command, env vars, disk).
-4. The blueprint uses the **Starter** plan because it needs a **persistent
+4. The blueprint uses the cheapest paid plan (**0.5c-512mb**) because it needs a **persistent
    disk** (a few $/month). Without a disk, every restart would wipe all
    accounts, invite codes, and scans. Confirm/accept the plan.
 5. Click **Apply / Create**. First build takes a few minutes.
