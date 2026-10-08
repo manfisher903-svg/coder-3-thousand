@@ -80,7 +80,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
         for rec in src.iter_messages():
             count += 1
             category, brand = classify(rec.sender_domain, rec.subject, rec.snippet)
-            inv.add_service(brand, category, rec.sender_domain, rec.subject)
+            inv.add_service(brand, category, rec.sender_domain, rec.subject, rec.date)
 
             # Analyze legitimacy FIRST, then build the profile only from
             # trustworthy mail so phishing/spoofed emails can't inject fake

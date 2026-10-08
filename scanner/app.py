@@ -215,6 +215,9 @@ padding:1px 5px;border-radius:4px;border:1px solid #1d3a2c}}
 background:var(--panel);line-height:1.6}}
 .note-h{{font-weight:700;letter-spacing:.5px;margin-bottom:4px}}
 .note-v{{margin-top:6px;color:#eaffb0;overflow-wrap:anywhere;word-break:break-word}}
+.tag{{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:999px;
+border:1px solid var(--grn2);color:#9effcf;margin:2px 2px 0 0;white-space:nowrap}}
+.tag.recent{{border-color:var(--grn);color:#02110b;background:var(--grn);font-weight:700}}
 pre.card{{white-space:pre-wrap;color:#9effcf;font-size:.85rem}}
 footer{{margin-top:26px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--grn2);
 padding-top:10px}}
@@ -632,21 +635,25 @@ def profile(folder):
         abort(404)
     d = json.load(open(report))
 
-    # Services by category — each links to the real website.
-    def _site_link(e):
+    # Services by category — link to the real site, with purpose + recency.
+    def _svc_line(e):
         doms = e.get("domains", [])
-        if doms:
-            d0 = doms[0]
-            return (f'<a href="https://{escape(d0)}" target="_blank" '
-                    f'rel="noopener">{escape(e["brand"])} ↗</a> '
-                    f'<span class="muted">{escape(", ".join(doms))}</span>')
-        return f'<b>{escape(e["brand"])}</b>'
+        name = escape(e["brand"])
+        head = (f'<a href="https://{escape(doms[0])}" target="_blank" rel="noopener">'
+                f'{name} ↗</a>' if doms else f'<b>{name}</b>')
+        tags = ""
+        for p in e.get("purposes", [])[:3]:
+            tags += f'<span class="tag">{escape(p)}</span>'
+        if e.get("recent"):
+            tags += '<span class="tag recent">recently used</span>'
+        seen = (f' · last {escape(e["last_seen"])}' if e.get("last_seen") else "")
+        return (f'<li>{head} <span class="muted">· {e["message_count"]} msg'
+                f'{seen}</span> {tags}</li>')
 
     svc_html = ""
     for cat in sorted(d.get("services_by_category", {})):
         entries = d["services_by_category"][cat]
-        items = "".join(
-            f"<li>{_site_link(e)} · {e['message_count']} msg</li>" for e in entries)
+        items = "".join(_svc_line(e) for e in entries)
         svc_html += (f"<h3>{escape(cat.title())} <span class='badge'>{len(entries)}"
                      f"</span></h3><ul>{items}</ul>")
     if not svc_html:
@@ -683,11 +690,13 @@ def profile(folder):
         items = pi.get(kind) or []
         if not items:
             continue
-        lis = "".join(
-            f"<li><code>{escape(str(it['value']))}</code>"
-            + (f" <span class='muted'>×{it['count']}</span>" if it['count'] > 1 else "")
-            + "</li>" for it in items)
-        pi_html += f"<h3>{escape(labels.get(kind, kind))} <span class='badge'>{len(items)}</span></h3><ul>{lis}</ul>"
+        vals = "".join(
+            f'<div class="note-v">{escape(str(it["value"]))}'
+            + (f' <span class="muted">(seen {it["count"]}×)</span>'
+               if it["count"] > 1 else "") + "</div>" for it in items)
+        pi_html += (f'<div class="note" style="border-left:4px solid var(--grn2)">'
+                    f'<div class="note-h">{escape(labels.get(kind, kind))} '
+                    f'<span class="badge">{len(items)}</span></div>{vals}</div>')
     if not pi_html:
         pi_html = ("<p class='muted'>No name/phone/address/DOB detected in this "
                    "inbox.</p>")
@@ -713,10 +722,12 @@ def profile(folder):
     for s in susp[:200]:
         color = "var(--red)" if s["verdict"] == "likely phishing" else "var(--amber)"
         reasons = "".join(f"<li>{escape(r)}</li>" for r in s.get("reasons", []))
-        susp_html += (f'<div class="card" style="border-color:{color}">'
-                      f'<b style="color:{color}">{escape(s["verdict"].upper())}</b> '
-                      f'— from <code>{escape(s["from"])}</code>'
-                      f'<div class="muted">{escape(s["subject"])}</div>'
+        susp_html += (f'<div class="note" style="border-left:4px solid {color}">'
+                      f'<div class="note-h" style="color:{color}">'
+                      f'{escape(s["verdict"].upper())}</div>'
+                      f'<div>from <b>{escape(s["from"])}</b> '
+                      f'(subject: {escape(s["subject"])})</div>'
+                      f'<div class="muted" style="margin-top:4px">Why it was flagged:</div>'
                       f'<ul>{reasons}</ul></div>')
     if not susp_html:
         susp_html = "<p class='muted'>No suspicious or phishing emails detected.</p>"

@@ -80,3 +80,32 @@ def classify(sender_domain: str, subject: str, snippet: str) -> Tuple[str, Optio
 
 def looks_like_account_signup(subject: str, snippet: str) -> bool:
     return bool(_ORDER_SIGNALS.search(f"{subject}\n{snippet}"))
+
+
+# Short "what is this email" tag, derived from the subject/snippet keywords.
+_PURPOSE_RULES = [
+    ("shipping", ["shipped", "has shipped", "out for delivery", "on its way",
+                  "tracking", "delivered", "your package"]),
+    ("order", ["order confirmation", "your order", "order #", "order placed",
+               "we received your order"]),
+    ("receipt", ["receipt", "invoice", "payment received", "you were charged",
+                 "thanks for your payment", "billed", "your payment"]),
+    ("statement", ["statement", "e-statement", "account summary"]),
+    ("password reset", ["reset your password", "password reset", "forgot password"]),
+    ("security alert", ["sign-in", "new login", "unusual activity",
+                        "verify your", "security alert", "two-factor", "code is"]),
+    ("booking", ["booking", "reservation", "itinerary", "boarding pass",
+                 "check-in", "your trip"]),
+    ("subscription", ["subscription", "renew", "auto-renew", "your plan",
+                      "membership", "trial"]),
+    ("signup", ["welcome to", "account created", "confirm your email",
+                "get started"]),
+]
+
+
+def purpose(subject: str, snippet: str = "") -> str:
+    hay = f"{subject}\n{snippet}".lower()
+    for label, words in _PURPOSE_RULES:
+        if any(w in hay for w in words):
+            return label
+    return ""

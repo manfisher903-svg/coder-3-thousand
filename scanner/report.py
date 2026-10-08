@@ -20,13 +20,26 @@ class ServiceEntry:
     domains: set = field(default_factory=set)
     sample_subjects: List[str] = field(default_factory=list)
     message_count: int = 0
+    purposes: set = field(default_factory=set)
+    last_seen: Optional[str] = None   # ISO date of the most recent message
 
-    def observe(self, domain: str, subject: str) -> None:
+    def observe(self, domain: str, subject: str, date=None) -> None:
+        from .classify import purpose as _purpose
         self.message_count += 1
         if domain:
             self.domains.add(domain)
         if subject and len(self.sample_subjects) < 3 and subject not in self.sample_subjects:
             self.sample_subjects.append(subject)
+        p = _purpose(subject)
+        if p:
+            self.purposes.add(p)
+        if date is not None:
+            try:
+                iso = date.date().isoformat()
+                if self.last_seen is None or iso > self.last_seen:
+                    self.last_seen = iso
+            except Exception:
+                pass
 
 
 @dataclass
@@ -52,12 +65,13 @@ class Inventory:
         self.name_counts: Dict[str, int] = {}     # candidate owner names
         self.protocol: str = "imap"               # imap | pop3 (how it connected)
 
-    def add_service(self, brand: Optional[str], category: str, domain: str, subject: str):
+    def add_service(self, brand: Optional[str], category: str, domain: str,
+                    subject: str, date=None):
         key = (brand or domain or category).lower()
         if key not in self.services:
             self.services[key] = ServiceEntry(brand=brand or domain or "(unknown)",
                                               category=category)
-        self.services[key].observe(domain, subject)
+        self.services[key].observe(domain, subject, date)
 
     def add_findings(self, findings: List[Finding], location: str):
         for f in findings:
@@ -76,6 +90,8 @@ class Inventory:
     # --- serialization ----------------------------------------------------
 
     def to_dict(self) -> dict:
+        from datetime import date as _date, timedelta
+        recent_cutoff = (_date.today() - timedelta(days=90)).isoformat()
         by_category: Dict[str, list] = defaultdict(list)
         for svc in self.services.values():
             by_category[svc.category].append({
@@ -83,6 +99,9 @@ class Inventory:
                 "domains": sorted(svc.domains),
                 "message_count": svc.message_count,
                 "sample_subjects": svc.sample_subjects,
+                "purposes": sorted(svc.purposes),
+                "last_seen": svc.last_seen,
+                "recent": bool(svc.last_seen and svc.last_seen >= recent_cutoff),
             })
         for cat in by_category:
             by_category[cat].sort(key=lambda s: -s["message_count"])
