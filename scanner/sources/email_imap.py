@@ -125,7 +125,15 @@ class EmailSource:
     def _resolve_server(self) -> None:
         """Fill in host/port/security from the address when not set explicitly."""
         if self.cfg.host:
-            if not self.cfg.port:
+            # A specific provider/host was chosen: look it up so we also get the
+            # right port, security and protocol (e.g. POP3 for NetZero/Juno).
+            from ..providers import resolve_by_host
+            srv = resolve_by_host(self.cfg.host)
+            if srv:
+                self.cfg.port = self.cfg.port or srv.port
+                self.cfg.security = srv.security
+                self.cfg.protocol = srv.protocol
+            elif not self.cfg.port:
                 self.cfg.port = 143 if self.cfg.security == "starttls" else 993
             return
         server = resolve_imap(self.cfg.username)

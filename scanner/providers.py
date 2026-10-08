@@ -69,6 +69,43 @@ _reg(["mail.ru", "bk.ru", "inbox.ru", "list.ru", "internet.ru"], "imap.mail.ru")
 _reg(["my.com"], "imap.my.com")  # the myMail service by my.com / Mail.ru Group
 
 
+# Curated list for the app's "choose provider" dropdown: (label, host).
+# An empty host means auto-detect from the address.
+PROVIDERS = [
+    ("Auto-detect (recommended)", ""),
+    ("Gmail", "imap.gmail.com"),
+    ("Yahoo", "imap.mail.yahoo.com"),
+    ("Outlook / Hotmail / Live", "outlook.office365.com"),
+    ("iCloud", "imap.mail.me.com"),
+    ("AOL", "imap.aol.com"),
+    ("Comcast (Xfinity)", "imap.comcast.net"),
+    ("AT&T / SBCGlobal / BellSouth", "imap.mail.att.net"),
+    ("Verizon", "imap.aol.com"),
+    ("Cox", "imap.cox.net"),
+    ("GMX", "imap.gmx.com"),
+    ("Zoho", "imap.zoho.com"),
+    ("Fastmail", "imap.fastmail.com"),
+    ("Yandex", "imap.yandex.com"),
+    ("Mail.com", "imap.mail.com"),
+    ("Mail.ru", "imap.mail.ru"),
+    ("NetZero (POP3)", "pop.netzero.net"),
+    ("Juno (POP3)", "pop.juno.com"),
+]
+
+
+def resolve_by_host(host: str) -> Optional[ImapServer]:
+    """If `host` is a known server, return its full settings (port, security,
+    and protocol — e.g. POP3 for NetZero/Juno). Otherwise None."""
+    if not host:
+        return None
+    h = host.strip().lower()
+    for srv in _KNOWN.values():
+        if srv.host.lower() == h:
+            return ImapServer(srv.host, srv.port, srv.security,
+                              source="chosen provider", protocol=srv.protocol)
+    return None
+
+
 def _domain_of(address: str) -> str:
     return address.split("@")[-1].strip().lower() if "@" in address else ""
 

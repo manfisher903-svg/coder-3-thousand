@@ -455,6 +455,32 @@ def test_inventory_roundtrip():
     assert "Personal Information Inventory" in md
 
 
+def test_account_provider_host_roundtrip():
+    import tempfile, os
+    from scanner.accounts import add_or_update, load_accounts
+    from scanner.providers import resolve_by_host
+    d = tempfile.mkdtemp()
+    path = os.path.join(d, "accounts.txt")
+
+    # Add with a chosen provider host; it must persist.
+    add_or_update(path, "me@comcast.net", "app pw with spaces",
+                  host="imap.comcast.net")
+    a = load_accounts(path)[0]
+    assert a.email == "me@comcast.net"
+    assert a.password == "app pw with spaces"      # spaces survive
+    assert a.host == "imap.comcast.net"
+
+    # Editing without a host keeps the stored host.
+    add_or_update(path, "me@comcast.net", "newpw", original_email="me@comcast.net")
+    assert load_accounts(path)[0].host == "imap.comcast.net"
+
+    # Known hosts resolve to full settings; POP3 providers stay POP3.
+    assert resolve_by_host("imap.comcast.net").protocol == "imap"
+    pop = resolve_by_host("pop.netzero.net")
+    assert pop.protocol == "pop3" and pop.port == 995
+    assert resolve_by_host("") is None
+
+
 def test_owner_and_invite_flow():
     import tempfile, os
     from scanner.users import add_user, is_owner, user_count, set_owner

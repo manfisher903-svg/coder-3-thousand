@@ -79,12 +79,14 @@ def load_accounts(path: str) -> List[Account]:
             if not line or line.startswith("#"):
                 continue
 
+            host = None
             if "," in line or "|" in line:
-                # Optional richer form: email,password[,mailbox]
-                parts = re.split(r"\s*[,|]\s*", line, maxsplit=2)
+                # Richer form: email | password [| mailbox [| host]]
+                parts = re.split(r"\s*[,|]\s*", line, maxsplit=3)
                 email = parts[0].strip()
                 password = parts[1].strip() if len(parts) > 1 else ""
-                mailbox = parts[2].strip() if len(parts) > 2 else None
+                mailbox = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
+                host = parts[3].strip() if len(parts) > 3 and parts[3].strip() else None
             else:
                 # Primary form: "email password" — the first whitespace splits
                 # the email from the password; everything after it is the
@@ -95,7 +97,8 @@ def load_accounts(path: str) -> List[Account]:
                 mailbox = None
 
             if email:
-                accounts.append(Account(email=email, password=password, mailbox=mailbox))
+                accounts.append(Account(email=email, password=password,
+                                        mailbox=mailbox, host=host))
 
     # De-duplicate by email, keeping the first occurrence.
     seen = set()
@@ -113,9 +116,12 @@ def save_accounts(path: str, accounts: List[Account]) -> None:
     lines = ["# Your email accounts — one per line: email<space>password",
              "# Managed by the app; edits here are fine too.", ""]
     for a in accounts:
-        line = f"{a.email} {a.password}"
-        if a.mailbox:
-            line += f" | {a.mailbox}"   # pipe keeps a spaced mailbox intact
+        if a.host or a.mailbox:
+            # Fully pipe-delimited so mailbox/host round-trip cleanly:
+            #   email | password | mailbox | host
+            line = f"{a.email} | {a.password} | {a.mailbox or ''} | {a.host or ''}"
+        else:
+            line = f"{a.email} {a.password}"
         lines.append(line)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
@@ -126,8 +132,13 @@ def save_accounts(path: str, accounts: List[Account]) -> None:
 
 
 def add_or_update(path: str, email: str, password: str,
-                  mailbox: Optional[str] = None, original_email: Optional[str] = None) -> None:
-    """Add a new account, or update one in place (matched by original_email)."""
+                  mailbox: Optional[str] = None, host: Optional[str] = None,
+                  original_email: Optional[str] = None) -> None:
+    """Add a new account, or update one in place (matched by original_email).
+
+    `host` is the chosen provider's mail host ("" / None = auto-detect). It is
+    only changed when explicitly provided, so edits that omit it keep it.
+    """
     accounts = load_accounts(path) if os.path.exists(path) else []
     key = (original_email or email).lower()
     found = False
@@ -136,10 +147,13 @@ def add_or_update(path: str, email: str, password: str,
             a.email, a.password = email, password
             if mailbox is not None:
                 a.mailbox = mailbox or None
+            if host is not None:
+                a.host = host or None
             found = True
             break
     if not found:
-        accounts.append(Account(email=email, password=password, mailbox=mailbox))
+        accounts.append(Account(email=email, password=password,
+                                mailbox=mailbox, host=host or None))
     save_accounts(path, accounts)
 
 

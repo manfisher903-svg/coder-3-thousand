@@ -415,6 +415,9 @@ def _load_base_config() -> Config:
 
 @app.route("/")
 def index():
+    from .providers import PROVIDERS
+    prov_opts = "".join(
+        f'<option value="{escape(h)}">{escape(lbl)}</option>' for lbl, h in PROVIDERS)
     accounts = []
     if os.path.exists(_acct_path()):
         try:
@@ -450,6 +453,9 @@ def index():
                  'no need to re-enter">🔑 saved</span>'
                  if (a.password or "").strip()
                  else '<span class="warn">no password</span>')
+        if a.host:
+            saved += (f'<br><span class="muted" style="font-size:.76rem">'
+                      f'via {escape(a.host)}</span>')
         disabled = "disabled" if running else ""
         actions = (
             f'{link} '
@@ -488,6 +494,11 @@ def index():
          style="min-width:240px"></p>
       <p><input name="password" type="text" placeholder="app password" required
          style="min-width:240px"></p>
+      <p><label class="muted">Email provider</label><br>
+         <select name="provider" style="min-width:260px">{prov_opts}</select></p>
+      <p class="muted" style="font-size:.8rem">Leave on <b>Auto-detect</b> unless
+         a scan says it couldn't find your mail server — then pick your provider
+         here and re-scan.</p>
       <p><button>Add account</button>
       <span class="muted">Saved to {escape(_acct_path())} on this computer.</span></p>
     </form></div>
@@ -828,8 +839,9 @@ def add_account():
         return r
     email = (request.form.get("email") or "").strip()
     password = (request.form.get("password") or "").strip()
+    host = (request.form.get("provider") or "").strip() or None
     if email and password:
-        add_or_update(_acct_path(), email, password)
+        add_or_update(_acct_path(), email, password, host=host)
     return redirect(url_for("index"))
 
 
