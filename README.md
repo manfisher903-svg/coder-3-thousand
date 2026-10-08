@@ -31,6 +31,39 @@ This tool is deliberately conservative about secrets:
    with `encrypt_passphrase`, and should be deleted when you're done. If a seed
    phrase shows up in your email, consider moving it offline afterward.
 
+## Giving it to someone else
+
+You can hand SpeedRunner to another person with a **single file** — they don't
+need Git, and they don't need to know anything technical.
+
+**Send them one of these (from this folder):**
+
+- Windows → **`install-windows.bat`**
+- Mac → **`install-mac.command`**
+
+They double-click it. It will:
+
+1. Check for Python and, if it's missing, open the download page with the
+   exact box to tick (`Add python.exe to PATH`).
+2. Download the latest SpeedRunner automatically.
+3. Put a **SpeedRunner** icon on their Desktop (Windows) for next time.
+4. Launch it in their browser.
+
+### Updates are automatic
+
+Every time they open SpeedRunner it **checks GitHub and pulls the latest
+version first** (their accounts and scans are always kept). So when you add a
+new feature, you just push it — the next time they open the app, they have it.
+Nothing to re-send.
+
+> **One requirement for this to work for other people:** the GitHub repo must
+> be **public** (the installer and the auto-update both download it without a
+> login). Your personal data is never in the repo — only the app's code — so a
+> free give-to-friends tool is normally fine to make public. If the repo is
+> private, the download will fail for anyone but you. You can check/flip this
+> under the repo's **Settings → General → Danger Zone → Change visibility** on
+> GitHub.
+
 ## Using it on your phone
 
 SpeedRunner runs on your computer, but you can **view and use it from your
