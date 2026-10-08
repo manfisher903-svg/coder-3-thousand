@@ -232,6 +232,7 @@ pre.card{{white-space:pre-wrap;color:#9effcf;font-size:.85rem}}
 footer{{margin-top:26px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--grn2);
 padding-top:10px}}
 </style></head><body>
+{intro}
 <canvas id="matrix"></canvas>
 <header>
 <span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
@@ -259,9 +260,94 @@ padding-top:10px}}
 </body></html>"""
 
 
+# Full-screen "glitch boot" intro. Plays once per browser session (so it fires
+# when you open the app, not on every click) and is skippable with a click/key.
+INTRO_HTML = r"""
+<style>
+#sr-intro{position:fixed;inset:0;z-index:99999;background:#02060a;display:flex;
+ flex-direction:column;align-items:center;justify-content:center;cursor:pointer;
+ font-family:'Courier New',monospace;color:#27ff99;overflow:hidden}
+.sr-seen #sr-intro{display:none}
+#sr-intro.done{animation:srOut .55s cubic-bezier(.6,0,.4,1) forwards}
+@keyframes srOut{0%{opacity:1}30%{opacity:.4;transform:translateY(-2px) scale(1.01)}
+ 100%{opacity:0;visibility:hidden;transform:scale(1.08)}}
+#sr-intro .scan{position:absolute;inset:0;pointer-events:none;
+ background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.33) 2px 4px);
+ animation:srScan 5s linear infinite}
+@keyframes srScan{to{background-position:0 420px}}
+#sr-intro .vig{position:absolute;inset:0;pointer-events:none;
+ background:radial-gradient(ellipse at center,rgba(0,0,0,0) 40%,rgba(0,0,0,.7) 100%)}
+#sr-intro .glitch{font-size:clamp(30px,9vw,92px);font-weight:900;letter-spacing:5px;
+ position:relative;text-transform:uppercase;text-shadow:0 0 18px rgba(39,255,153,.55);
+ animation:srFlick 2.6s steps(60) infinite}
+@keyframes srFlick{0%,7%,9%,100%{opacity:1}8%{opacity:.35}42%{opacity:.85}43%{opacity:.25}44%{opacity:1}}
+#sr-intro .glitch::before,#sr-intro .glitch::after{content:attr(data-t);position:absolute;
+ left:0;top:0;width:100%;overflow:hidden;background:#02060a}
+#sr-intro .glitch::before{color:#ff2e6d;animation:srG1 .55s infinite linear alternate-reverse}
+#sr-intro .glitch::after{color:#2ee6ff;animation:srG2 .62s infinite linear alternate-reverse}
+@keyframes srG1{0%{clip-path:inset(8% 0 86% 0);transform:translate(-3px,-1px)}
+ 20%{clip-path:inset(62% 0 18% 0);transform:translate(3px,1px)}
+ 40%{clip-path:inset(30% 0 55% 0);transform:translate(-2px,0)}
+ 60%{clip-path:inset(82% 0 4% 0);transform:translate(2px,-1px)}
+ 80%{clip-path:inset(44% 0 41% 0);transform:translate(-3px,1px)}
+ 100%{clip-path:inset(20% 0 66% 0);transform:translate(2px,0)}}
+@keyframes srG2{0%{clip-path:inset(76% 0 9% 0);transform:translate(3px,1px)}
+ 20%{clip-path:inset(14% 0 71% 0);transform:translate(-3px,-1px)}
+ 40%{clip-path:inset(55% 0 30% 0);transform:translate(2px,0)}
+ 60%{clip-path:inset(4% 0 86% 0);transform:translate(-2px,1px)}
+ 80%{clip-path:inset(40% 0 46% 0);transform:translate(3px,-1px)}
+ 100%{clip-path:inset(66% 0 20% 0);transform:translate(-2px,0)}}
+#sr-intro .log{margin-top:24px;font-size:13px;line-height:1.5;min-height:92px;
+ text-align:left;width:min(480px,86vw);white-space:pre-wrap;
+ text-shadow:0 0 6px rgba(39,255,153,.6)}
+#sr-intro .bar{margin-top:8px;width:min(480px,86vw);height:9px;border:1px solid #1f8f5e;
+ border-radius:3px;overflow:hidden;background:rgba(39,255,153,.06)}
+#sr-intro .bar i{display:block;height:100%;width:0;background:#27ff99;
+ box-shadow:0 0 10px #27ff99;animation:srBar 2.2s cubic-bezier(.5,.1,.3,1) forwards}
+@keyframes srBar{to{width:100%}}
+#sr-intro .skip{position:absolute;bottom:18px;font-size:11px;color:#1a8f5e;letter-spacing:2px}
+@media (prefers-reduced-motion:reduce){.sr-seen #sr-intro,#sr-intro{display:none}}
+</style>
+<script>
+try{if(sessionStorage.getItem('srIntro')==='1'){document.documentElement.classList.add('sr-seen');}}catch(e){}
+</script>
+<div id="sr-intro" aria-hidden="true">
+  <div class="glitch" data-t="SPEEDRUNNER">SPEEDRUNNER</div>
+  <div class="log"></div>
+  <div class="bar"><i></i></div>
+  <div class="skip">[ click or press any key to skip ]</div>
+  <div class="scan"></div><div class="vig"></div>
+</div>
+<script>
+(function(){
+  var el=document.getElementById('sr-intro');
+  if(!el||document.documentElement.classList.contains('sr-seen')){return;}
+  var log=el.querySelector('.log');
+  var lines=['> establishing secure channel ............ OK',
+             '> bypassing firewall .................... OK',
+             '> decrypting local vault ............... OK',
+             '> loading modules [scan][crypto][net] .. OK',
+             '> ACCESS GRANTED'];
+  var i=0;
+  (function type(){ if(i<lines.length){ log.textContent+=lines[i]+'\n'; i++;
+     setTimeout(type,250);} })();
+  var done=false;
+  function end(){ if(done)return; done=true; el.classList.add('done');
+    try{sessionStorage.setItem('srIntro','1');}catch(e){}
+    setTimeout(function(){ if(el&&el.parentNode)el.parentNode.removeChild(el); },600); }
+  var t=setTimeout(end,2500);
+  el.addEventListener('click',function(){clearTimeout(t);end();});
+  document.addEventListener('keydown',function h(){clearTimeout(t);end();
+    document.removeEventListener('keydown',h);});
+})();
+</script>
+"""
+
+
 def render(title: str, body: str) -> str:
     ownernav = '<a href="/invites">▸ invite codes</a>' if _is_owner() else ""
-    return PAGE.format(title=escape(title), body=body, ownernav=ownernav)
+    return PAGE.format(title=escape(title), body=body, ownernav=ownernav,
+                       intro=INTRO_HTML)
 
 
 def _load_base_config() -> Config:

@@ -66,6 +66,17 @@ Nothing to re-send.
 > under the repo's **Settings → General → Danger Zone → Change visibility** on
 > GitHub.
 
+## Pinning it to your taskbar (Windows)
+
+The installer puts a **SpeedRunner** shortcut on your Desktop *and* in the Start
+Menu. Windows doesn't let an app pin itself to the taskbar, but it's one click:
+
+1. Open the **Start menu** and type `SpeedRunner` (or find it on the Desktop).
+2. **Right-click** it → **Pin to taskbar** (on the Desktop icon it may be under
+   *Show more options* first).
+
+Now it launches straight from the taskbar like any other app.
+
 ## Owner account + invite codes (controlling who can sign up)
 
 SpeedRunner supports an **owner** (admin) account plus **invite codes**, so you

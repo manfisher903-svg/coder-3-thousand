@@ -38,11 +38,16 @@ REM --- 3) install the app's components into that private Python ---
 echo   [3/3] Installing components...
 "%APPDIR%\python\python.exe" -m pip install -q -r "%APPDIR%\requirements.txt"
 
-REM --- put a clickable icon on the Desktop for next time ---
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'),'SpeedRunner.lnk')); $s.TargetPath=Join-Path '%APPDIR%' 'run_app.bat'; $s.WorkingDirectory='%APPDIR%'; $s.IconLocation='%SystemRoot%\System32\SHELL32.dll,44'; $s.Save()" >nul 2>&1
+REM --- put a clickable icon on the Desktop AND in the Start Menu ---
+REM (Start Menu entries can be right-clicked and pinned to the taskbar.)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; foreach($p in @([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'),'SpeedRunner.lnk'),[IO.Path]::Combine([Environment]::GetFolderPath('Programs'),'SpeedRunner.lnk'))){ $s=$w.CreateShortcut($p); $s.TargetPath=Join-Path '%APPDIR%' 'run_app.bat'; $s.WorkingDirectory='%APPDIR%'; $s.IconLocation='%SystemRoot%\System32\SHELL32.dll,44'; $s.Save() }" >nul 2>&1
 
 echo.
-echo   Done! A "SpeedRunner" icon is on your Desktop - use it next time.
+echo   Done! A "SpeedRunner" icon is on your Desktop and in the Start Menu.
+echo.
+echo   To PIN it to your taskbar: open the Start menu, type SpeedRunner,
+echo   right-click it, and choose "Pin to taskbar".
+echo.
 echo   Starting SpeedRunner now...
 echo.
 cd /d "%APPDIR%"
