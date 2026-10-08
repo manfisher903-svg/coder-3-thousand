@@ -36,6 +36,7 @@ class SensitiveHit:
     location: str
     rendered: str
     advice: str
+    context: str = ""
 
 
 class Inventory:
@@ -67,6 +68,8 @@ class Inventory:
                     location=location,
                     rendered=render_value(f, self.detail),
                     advice=f.advice,
+                    # Full context only at 'full' detail (it contains the value).
+                    context=f.context if self.detail == "full" else "",
                 )
             )
 
@@ -90,7 +93,7 @@ class Inventory:
         sensitive = sorted(
             ({
                 "kind": h.kind, "severity": h.severity, "location": h.location,
-                "value": h.rendered, "advice": h.advice,
+                "value": h.rendered, "advice": h.advice, "context": h.context,
             } for h in self.sensitive if h.kind not in IDENTITY_KINDS),
             key=lambda h: sev_order.get(h["severity"], 9),
         )

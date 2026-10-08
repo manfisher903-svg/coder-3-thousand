@@ -626,11 +626,14 @@ def profile(folder):
     # Sensitive findings
     find_rows = ""
     for h in d.get("sensitive_findings", []):
+        # Show it exactly as found in the email (with surrounding context) when
+        # available; fall back to the value itself.
+        shown = h.get("context") or str(h.get("value", ""))
         find_rows += (f"<tr><td>{escape(h['severity'].upper())}</td>"
                       f"<td>{escape(h['kind'])}</td>"
-                      f"<td><code>{escape(str(h['value']))}</code></td>"
+                      f"<td><code>{escape(shown)}</code></td>"
                       f"<td>{escape(h['location'])}</td></tr>")
-    find_html = (f"<table><tr><th>Severity</th><th>Type</th><th>Value</th>"
+    find_html = (f"<table><tr><th>Severity</th><th>Type</th><th>Value (as found)</th>"
                  f"<th>Where</th></tr>{find_rows}</table>"
                  if find_rows else "<p class='muted'>No sensitive items found.</p>")
 

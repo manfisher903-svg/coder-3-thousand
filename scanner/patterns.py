@@ -18,6 +18,7 @@ class Finding:
     raw: Optional[str] # the matched text, or None when we refuse to keep it
     severity: str      # "high" | "medium" | "low"
     advice: str        # recommended action for the user
+    context: str = ""  # the surrounding text, exactly as it appears in the email
 
 
 # --- helpers ---------------------------------------------------------------
@@ -236,5 +237,25 @@ def scan_sensitive(text: str) -> List[Finding]:
         if key in seen:
             continue
         seen.add(key)
+        f.context = _context_for(f.raw, text)
         unique.append(f)
     return unique
+
+
+def _context_for(value: Optional[str], text: str, window: int = 60) -> str:
+    """The text surrounding a found value, exactly as it appears (trimmed)."""
+    if not value:
+        return ""
+    idx = text.find(value)
+    if idx < 0:
+        # value may have been normalized (e.g. card digits with spaces stripped)
+        return value
+    start = max(0, idx - window)
+    end = min(len(text), idx + len(value) + window)
+    snippet = text[start:end]
+    snippet = " ".join(snippet.split())  # collapse newlines / runs of spaces
+    if start > 0:
+        snippet = "…" + snippet
+    if end < len(text):
+        snippet = snippet + "…"
+    return snippet
