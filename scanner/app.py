@@ -72,8 +72,16 @@ def _out_dir():
 # --- app login (protects everything behind one password) ------------------
 
 def _app_secret() -> bytes:
-    """Stable signing key for sessions; created once, persisted locally."""
+    """Stable signing key for sessions.
+
+    On a hosted server set the PIS_SECRET env var (any long random string) so
+    logins survive restarts/redeploys. Otherwise it's created once and saved
+    locally (fine for running on your own machine).
+    """
     import secrets
+    env = os.environ.get("PIS_SECRET", "").strip()
+    if env:
+        return env.encode("utf-8")
     try:
         with open(SECRET_PATH, "r", encoding="utf-8") as fh:
             return bytes.fromhex(fh.read().strip())
@@ -90,6 +98,10 @@ def _app_secret() -> bytes:
 
 app.secret_key = _app_secret()
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+# On a public HTTPS host, set PIS_SECURE_COOKIES=1 so the login cookie is only
+# ever sent over HTTPS.
+if os.environ.get("PIS_SECURE_COOKIES", "").strip() in ("1", "true", "yes"):
+    app.config.update(SESSION_COOKIE_SECURE=True)
 
 # Endpoints reachable without being logged in.
 _PUBLIC = {"login", "register", "static"}

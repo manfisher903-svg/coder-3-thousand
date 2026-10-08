@@ -1,0 +1,35 @@
+# Render.com blueprint for hosting SpeedRunner as an always-on web app.
+# In Render: New + → Blueprint → connect this repo → it reads this file.
+#
+# NOTE: the persistent disk below requires a PAID instance (the free plan has
+# no disk, so accounts/codes/scans would reset on every restart). The "starter"
+# plan is a few dollars a month.
+services:
+  - type: web
+    name: speedrunner
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    # ONE worker on purpose: scan progress and per-user state are kept in memory,
+    # so a single worker (with threads for concurrency) keeps everything consistent.
+    startCommand: gunicorn scanner.app:app --workers 1 --threads 8 --timeout 600 --bind 0.0.0.0:$PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: PIS_SECRET          # random signing key so logins survive restarts
+        generateValue: true
+      - key: PIS_SECURE_COOKIES  # app is served over HTTPS on Render
+        value: "1"
+      - key: PIS_OWNER           # the single owner account
+        value: "650rio"
+      - key: PIS_DATA            # all live on the persistent disk below
+        value: /var/data/data
+      - key: PIS_USERS
+        value: /var/data/.pis_users.json
+      - key: PIS_INVITES
+        value: /var/data/.pis_invites.json
+    disk:
+      name: speedrunner-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -4,3 +4,5 @@ PyYAML>=6.0
 cryptography>=41.0
 # For the desktop/browser app (python -m scanner.app):
 Flask>=3.0
+# Production web server, used only when hosting the app publicly (see DEPLOY.md).
+gunicorn>=21.0
