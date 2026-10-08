@@ -25,3 +25,8 @@ venv/
 .pis_users.json
 .pis_invites.json
 data/
+
+# Tunnel tool (downloaded locally, not committed)
+cloudflared
+cloudflared.exe
+cloudflared.tgz

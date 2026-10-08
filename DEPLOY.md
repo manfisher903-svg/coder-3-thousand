@@ -1,4 +1,31 @@
-# Hosting SpeedRunner as an always-on link (Render)
+# Getting a shareable link
+
+Two ways: a **free** one that runs on your own laptop, or a **paid, always-on**
+one in the cloud.
+
+## Free option — your laptop + a public link (no cost)
+
+Run SpeedRunner on your computer and expose it with a free Cloudflare tunnel.
+Your laptop does the work; the tunnel just gives it a public web address.
+
+- **Windows:** double-click **`run_app_public.bat`**
+- **Mac:** run **`run_app_public.sh`**
+
+It starts the app, then prints a link like **`https://something.trycloudflare.com`**.
+Share **that link + an invite code** with people. First run also registers your
+owner account `650rio` (visit the link and sign up).
+
+**Trade-off:** the link only works while that window stays open and your laptop
+is on. Close it / shut the laptop → the link goes down (and the address changes
+next time). Your accounts, codes and scans are saved on your laptop, so they
+persist between runs.
+
+If you want a link that's up 24/7 even when your laptop is off, use the paid
+cloud option below.
+
+---
+
+# Always-on hosting in the cloud (Render)
 
 This gives you a permanent web address like `https://speedrunner-xxxx.onrender.com`
 that you can share. People open it, enter an **invite code** you generate, and
