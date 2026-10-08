@@ -264,7 +264,7 @@ def _load_base_config() -> Config:
         except Exception:
             cfg = Config()
     cfg.output.detail = "full"
-    cfg.output.save_attachments = True
+    cfg.output.save_attachments = False   # fast text-only scan by default
     cfg.email.since_days = 0        # all time, not just the last 2 years
     cfg.email.mailbox = "ALL"       # every folder: inbox, sent, archive, spam…
     cfg.email.max_messages = 50000  # effectively "everything" for most mailboxes
@@ -353,9 +353,14 @@ def index():
     </form></div>
 
     <div class="card"><h2>Scan</h2>
-    <p class="muted">Reads each inbox read-only and builds a profile with
-    everything found — services, sensitive items, and saved files/pictures.</p>
-    <form method="post" action="/scan" onsubmit="setTimeout(poll,400)">{scan_btn}</form>
+    <p class="muted">Reads each inbox read-only and finds services and sensitive
+    info. Fast mode reads just the text; tick the box to also download and save
+    pictures &amp; files (much slower).</p>
+    <form method="post" action="/scan" onsubmit="setTimeout(poll,400)">
+      <p><label><input type="checkbox" name="attachments" value="1">
+        Also save pictures &amp; files (slower)</label></p>
+      {scan_btn}
+    </form>
     <div id="progress" style="margin-top:12px"></div>
     </div>
 
@@ -542,10 +547,11 @@ def remove_account():
     return redirect(url_for("index"))
 
 
-def _run_scan(accounts_path, output_dir, user, only_email=None):
+def _run_scan(accounts_path, output_dir, user, only_email=None, save_attachments=False):
     from .batch import run_batch, scan_one, write_index
 
     base = _load_base_config()
+    base.output.save_attachments = save_attachments
     progress = _make_progress(user)
 
     try:
@@ -576,7 +582,7 @@ def _run_scan(accounts_path, output_dir, user, only_email=None):
             _state_for(user)["running"] = False
 
 
-def _start_scan(only_email=None):
+def _start_scan(only_email=None, save_attachments=False):
     user = _user()
     accounts_path, output_dir = _acct_path(), _out_dir()
     with _scan_lock:
@@ -587,21 +593,22 @@ def _start_scan(only_email=None):
             st["order"] = []
             threading.Thread(
                 target=_run_scan,
-                args=(accounts_path, output_dir, user, only_email),
+                args=(accounts_path, output_dir, user, only_email, save_attachments),
                 daemon=True).start()
 
 
 @app.route("/accounts/rescan", methods=["POST"])
 def rescan_account():
     email = (request.form.get("email") or "").strip()
+    save = bool(request.form.get("attachments"))
     if email:
-        _start_scan(only_email=email)
+        _start_scan(only_email=email, save_attachments=save)
     return redirect(url_for("index"))
 
 
 @app.route("/scan", methods=["POST"])
 def scan():
-    _start_scan()
+    _start_scan(save_attachments=bool(request.form.get("attachments")))
     return redirect(url_for("index"))
 
 

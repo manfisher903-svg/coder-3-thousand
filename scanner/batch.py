@@ -75,6 +75,7 @@ def scan_one(account: Account, base: Config, out_dir: str,
     _emit(progress, event="start", email=account.email)
     try:
         src = EmailSource(email_cfg)
+        src.fetch_full = base.output.save_attachments  # full only when saving files
         inv.protocol = getattr(src.cfg, "protocol", "imap")
         count = 0
         for rec in src.iter_messages():

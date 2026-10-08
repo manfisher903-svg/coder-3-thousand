@@ -116,6 +116,10 @@ class EmailSource:
     def __init__(self, cfg: EmailConfig):
         self.cfg = cfg
         self.total = None  # set once the mailbox is searched
+        # When False (the fast default), fetch only the first ~128 KB of each
+        # message — enough for headers + text to find sensitive info — instead
+        # of downloading full attachments. Set True to also save pictures/files.
+        self.fetch_full = True
         self._resolve_server()
 
     def _resolve_server(self) -> None:
@@ -313,8 +317,12 @@ class EmailSource:
                     chunk = order[i:i + BATCH]
                     id_set = b",".join(
                         c if isinstance(c, bytes) else str(c).encode() for c in chunk)
+                    # Fast mode: only the first 128 KB (headers + text), skipping
+                    # big attachment downloads. Full mode: the whole message.
+                    spec = ("(BODY.PEEK[])" if self.fetch_full
+                            else "(BODY.PEEK[]<0.131072>)")
                     try:
-                        typ, msg_data = conn.fetch(id_set, "(BODY.PEEK[])")
+                        typ, msg_data = conn.fetch(id_set, spec)
                     except Exception:
                         continue
                     if typ != "OK" or not msg_data:
