@@ -272,12 +272,14 @@ def scan_sensitive(text: str) -> List[Finding]:
     for _name, fn in IDENTITY_DETECTORS:
         findings.extend(fn(text))
 
-    # De-duplicate (same kind + same value) so strict + labeled detectors
-    # don't double-report the same thing.
+    # De-duplicate so strict + labeled detectors don't double-report. Most kinds
+    # de-dupe by (kind, value); "signal" kinds that just mean "this email
+    # contains X" collapse to ONE per message (e.g. tax keywords W-2/1099/1040).
+    _ONE_PER_MESSAGE = {"tax_document"}
     seen = set()
     unique: List[Finding] = []
     for f in findings:
-        key = (f.kind, (f.raw or "").strip())
+        key = (f.kind,) if f.kind in _ONE_PER_MESSAGE else (f.kind, (f.raw or "").strip())
         if key in seen:
             continue
         seen.add(key)
