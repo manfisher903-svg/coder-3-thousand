@@ -209,8 +209,12 @@ border-radius:999px;background:rgba(39,255,153,.1);font-size:.78rem}}
 img.att{{max-width:220px;max-height:220px;border:1px solid var(--grn2);border-radius:6px;
 margin:4px;filter:saturate(.9)}}
 img.att:hover{{box-shadow:0 0 14px var(--grn)}}
-code{{word-break:break-all;color:#eaffb0;background:#02110b;padding:1px 5px;
-border-radius:4px;border:1px solid #1d3a2c}}
+code{{overflow-wrap:anywhere;word-break:break-word;color:#eaffb0;background:#02110b;
+padding:1px 5px;border-radius:4px;border:1px solid #1d3a2c}}
+.note{{border:1px solid var(--grn2);border-radius:8px;padding:12px 14px;margin:10px 0;
+background:var(--panel);line-height:1.6}}
+.note-h{{font-weight:700;letter-spacing:.5px;margin-bottom:4px}}
+.note-v{{margin-top:6px;color:#eaffb0;overflow-wrap:anywhere;word-break:break-word}}
 pre.card{{white-space:pre-wrap;color:#9effcf;font-size:.85rem}}
 footer{{margin-top:26px;color:var(--dim);font-size:.8rem;border-top:1px solid var(--grn2);
 padding-top:10px}}
@@ -598,6 +602,23 @@ def scan():
     return redirect(url_for("index"))
 
 
+_KIND_LABEL = {
+    "credit_card": "a payment card number",
+    "ssn": "a Social Security number (SSN)",
+    "seed_phrase": "a crypto recovery / seed phrase",
+    "password": "a password",
+    "bank_account": "a bank account number",
+    "bank_routing": "a bank routing number",
+    "iban": "a bank IBAN",
+    "gift_card": "a gift card / redemption code",
+    "private_key": "a private key",
+    "crypto_private_key": "a crypto private key",
+    "pin_or_cvv": "a PIN / CVV / security code",
+    "ein": "an employer tax ID (EIN)",
+    "tax_document": "tax info (W-2 / 1099 / IRS, etc.)",
+}
+
+
 def _is_image(name: str) -> bool:
     return name.lower().rsplit(".", 1)[-1] in {"png", "jpg", "jpeg", "gif", "webp", "bmp"}
 
@@ -631,19 +652,27 @@ def profile(folder):
     if not svc_html:
         svc_html = "<p class='muted'>No services detected.</p>"
 
-    # Sensitive findings
-    find_rows = ""
+    # Sensitive findings — rendered as readable notes (not a cramped table).
+    find_html = ""
     for h in d.get("sensitive_findings", []):
-        # Show it exactly as found in the email (with surrounding context) when
-        # available; fall back to the value itself.
         shown = h.get("context") or str(h.get("value", ""))
-        find_rows += (f"<tr><td>{escape(h['severity'].upper())}</td>"
-                      f"<td>{escape(h['kind'])}</td>"
-                      f"<td><code>{escape(shown)}</code></td>"
-                      f"<td>{escape(h['location'])}</td></tr>")
-    find_html = (f"<table><tr><th>Severity</th><th>Type</th><th>Value (as found)</th>"
-                 f"<th>Where</th></tr>{find_rows}</table>"
-                 if find_rows else "<p class='muted'>No sensitive items found.</p>")
+        label = _KIND_LABEL.get(h.get("kind", ""), h.get("kind", "").replace("_", " "))
+        sev = (h.get("severity") or "").lower()
+        col = {"high": "var(--red)", "medium": "var(--amber)"}.get(sev, "var(--grn2)")
+        # Split "sender — 'subject'" into a readable sentence.
+        loc = h.get("location", "")
+        sender, _, subj = loc.partition(" — ")
+        where = f"in an email from <b>{escape(sender)}</b>"
+        if subj:
+            where += f" (subject: {escape(subj.strip())})"
+        find_html += (
+            f'<div class="note" style="border-left:4px solid {col}">'
+            f'<div class="note-h" style="color:{col}">Found {escape(label)}</div>'
+            f'<div>{where}.</div>'
+            f'<div class="note-v">As it appeared: “{escape(shown)}”</div>'
+            f'</div>')
+    if not find_html:
+        find_html = "<p class='muted'>No sensitive items found.</p>"
 
     # Personal info found (contact/identity), grouped and de-duplicated.
     pi = d.get("personal_info", {})
