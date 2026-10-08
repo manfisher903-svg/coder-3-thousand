@@ -193,6 +193,20 @@ def test_mailbox_sweep_logic():
     assert src_for("imap.gmail.com", "INBOX")._list_mailboxes(FakeConn([])) == ["INBOX"]
 
 
+def test_labeled_plain_language_detection():
+    # Info written in plain English, not standard formats, is still caught.
+    def kinds(t):
+        return {f.kind: f.raw for f in scan_sensitive(t)}
+    assert kinds("my card number is 5424189090238457 09/30 943")["credit_card"] \
+        == "5424189090238457"
+    assert kinds("my ssn is 34398543")["ssn"] == "34398543"
+    seed = kinds("coinbase seed key: oniuniubiuebiufbeiufbeiufeiuf").get("seed_phrase")
+    assert seed and "oniuni" in seed
+    assert "pin_or_cvv" in kinds("my pin is 4821")
+    # But an unlabeled random number is NOT a false-positive card.
+    assert "credit_card" not in kinds("order 1234 5678 9012 3456 shipped")
+
+
 def test_tax_detection():
     kinds = {}
     for f in scan_sensitive("Your W-2 for tax year 2024. EIN: 12-3456789. "
@@ -212,11 +226,13 @@ def test_identity_detectors_and_grouping():
     assert {"email_address", "phone", "mailing_address", "date_of_birth"} <= kinds
 
     inv = Inventory(detail="full", account="me@x.com")
-    inv.add_findings(scan_sensitive(sample), "loc")
+    # Same email across two messages → counted twice (within one message it's
+    # de-duplicated, so simulate two messages).
+    inv.add_findings(scan_sensitive("write john.doe@example.com"), "msg1")
+    inv.add_findings(scan_sensitive("again john.doe@example.com"), "msg2")
     d = inv.to_dict()
-    # Identity items live under personal_info, not sensitive_findings.
     assert d["personal_info"].get("email_address"), d["personal_info"]
-    assert d["personal_info"]["email_address"][0]["count"] == 2  # deduped
+    assert d["personal_info"]["email_address"][0]["count"] == 2
     assert all(f["kind"] not in {"email_address", "phone"}
                for f in d["sensitive_findings"])
 

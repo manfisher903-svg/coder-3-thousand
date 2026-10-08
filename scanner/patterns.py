@@ -162,6 +162,44 @@ SENSITIVE_DETECTORS: List[Tuple[str, Callable[[str], List[Finding]]]] = [
                              "Store tax documents securely, not in your inbox.")),
 ]
 
+# --- labeled values: catch info written in plain language -----------------
+# e.g. "my card number is 5424189090238457", "ssn is 34398543",
+#      "seed key: oniuni...", "pin: 1234". Format-tolerant, label-driven.
+_L_CARD = re.compile(
+    r"card(?:\s*(?:number|num|no\.?|#))?\s*(?:is|:|=)?\s*"
+    r"(\d{4}(?:[ -]?\d{4}){2,4}|\d{12,19})", re.IGNORECASE)
+_L_SSN = re.compile(
+    r"(?:ssn|social\s*security(?:\s*(?:number|no\.?|#))?)\s*(?:is|:|=)?\s*"
+    r"(\d{3}-?\d{2}-?\d{4}|\d{6,11})", re.IGNORECASE)
+_L_SEED = re.compile(
+    r"(?:seed\s*(?:key|phrase)?|recovery\s*(?:phrase|key)|mnemonic|"
+    r"wallet\s*backup)\s*(?:is|:|=)?\s*([A-Za-z0-9][A-Za-z0-9 ]{11,199})",
+    re.IGNORECASE)
+_L_PIN = re.compile(r"\b(?:cvv|cvc|security\s*code|pin)\b\s*(?:is|:|=)?\s*(\d{3,6})\b",
+                    re.IGNORECASE)
+_L_ROUTING = re.compile(r"routing\s*(?:number|no\.?|#)?\s*(?:is|:|=)?\s*(\d{9})\b",
+                        re.IGNORECASE)
+_L_ACCT = re.compile(
+    r"(?:account|acct)\s*(?:number|no\.?|#)?\s*(?:is|:|=)?\s*(\d{6,17})\b",
+    re.IGNORECASE)
+
+LABELED_DETECTORS: List[Tuple[str, Callable[[str], List[Finding]]]] = [
+    ("credit_card", _group1(_L_CARD, "credit_card", "high",
+                            "A card number is written out here. Don't keep card "
+                            "numbers in email.")),
+    ("ssn", _group1(_L_SSN, "ssn", "high",
+                    "An SSN is written out here. Remove it from email.")),
+    ("seed_phrase", _group1(_L_SEED, "seed_phrase", "high",
+                            "A crypto seed/recovery key is written out here. "
+                            "Move it offline and delete it from email.")),
+    ("pin", _group1(_L_PIN, "pin_or_cvv", "high",
+                    "A PIN / CVV / security code is written out here.")),
+    ("bank_routing", _group1(_L_ROUTING, "bank_routing", "medium",
+                             "A bank routing number is written out here.")),
+    ("bank_account", _group1(_L_ACCT, "bank_account", "medium",
+                             "A bank account number is written out here.")),
+]
+
 # Identity / contact details found in your own inbox. These are "low" severity
 # because they're normal to have — the point is to SEE what's exposed so you can
 # remove or secure it. Kinds here are grouped as "Personal info found".
@@ -184,6 +222,19 @@ def scan_sensitive(text: str) -> List[Finding]:
     findings: List[Finding] = []
     for _name, fn in SENSITIVE_DETECTORS:
         findings.extend(fn(text))
+    for _name, fn in LABELED_DETECTORS:
+        findings.extend(fn(text))
     for _name, fn in IDENTITY_DETECTORS:
         findings.extend(fn(text))
-    return findings
+
+    # De-duplicate (same kind + same value) so strict + labeled detectors
+    # don't double-report the same thing.
+    seen = set()
+    unique: List[Finding] = []
+    for f in findings:
+        key = (f.kind, (f.raw or "").strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(f)
+    return unique
