@@ -43,8 +43,10 @@ need Git, and they don't need to know anything technical.
 
 They double-click it. It will:
 
-1. Check for Python and, if it's missing, open the download page with the
-   exact box to tick (`Add python.exe to PATH`).
+1. **Windows:** download the app *and its own private copy of Python* — the
+   person needs **nothing** installed first.
+   **Mac:** if Python 3 is missing it opens the download page (one-time click);
+   many Macs already have it.
 2. Download the latest SpeedRunner automatically.
 3. Put a **SpeedRunner** icon on their Desktop (Windows) for next time.
 4. Launch it in their browser.
