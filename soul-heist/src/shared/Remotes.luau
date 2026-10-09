@@ -12,6 +12,7 @@
 		Knockback(velocity: Vector3)         client applies it to its own character (it owns its physics)
 	Client -> Server (RemoteEvent)
 		DropOrb()                            voluntarily drop the carried soul
+		SetSneak(on: boolean)                sneak mode (slower, much harder for guardians to spot)
 	Client -> Server (RemoteFunction) - all return { ok: boolean, msg: string? }
 		GetState()                           returns snapshot
 		RequestUpgrade(kind, amount)         kind: "Speed"|"Carry"|"Treadmill"|"Pedestal"
@@ -24,6 +25,9 @@
 		ClaimPlaytime(index)                 claim a session playtime gift
 		ClaimQuest(index | "Bonus")          claim a finished daily quest / the all-quests bonus
 		BuyEventItem(itemId)                 buy from the seasonal event shop with Candy
+		SetCompanion(petId | nil)            choose the spirit that follows you (gives your ability)
+		UseAbility()                         use your companion's ability
+		Haunt()                              curse the player who just robbed you
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,10 +35,11 @@ local RunService = game:GetService("RunService")
 
 local Remotes = {}
 
-Remotes.EventNames = { "Notify", "StateChanged", "HatchResult", "Announce", "Knockback", "DropOrb" }
+Remotes.EventNames = { "Notify", "StateChanged", "HatchResult", "Announce", "Knockback", "DropOrb", "SetSneak" }
 Remotes.FunctionNames = {
 	"GetState", "RequestUpgrade", "RequestRebirth", "BuyPerk", "RedeemCode", "PetAction", "RequestLock",
 	"ClaimDaily", "ClaimPlaytime", "ClaimQuest", "BuyEventItem",
+	"SetCompanion", "UseAbility", "Haunt",
 }
 
 local FOLDER_NAME = "Remotes"

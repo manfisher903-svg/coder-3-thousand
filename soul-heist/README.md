@@ -16,6 +16,7 @@ A complete design, economy, monetization plan, and **drop-in Luau codebase** for
 | 6 | [Marketing & Launch](docs/06-marketing-launch.md) | Icon/thumbnails, codes, influencer plan, 30-day update roadmap |
 | 7 | [Polish & Anti-Exploit](docs/07-polish-and-anti-exploit.md) | VFX, sound design, anti-exploit priorities, retention polish |
 | 8 | [Retention & Halloween Event](docs/08-retention-and-events.md) | Daily streak, playtime gifts, daily quests, Spirit Index, leaderboards, Hallow-Soul Festival |
+| 9 | [What Makes It Different](docs/09-what-makes-it-different.md) | Stealth heists, Companion powers, Soul Fusion, Haunt revenge |
 
 ## Fastest start: open the ready-made place file
 
@@ -43,7 +44,8 @@ Rebuild it after code changes with `rojo build default.project.json -o SoulHeist
 - **StealService**: carry weight slowdown, drops, delivery, stealing from bases, thief highlight, server-owned WalkSpeed
 - **PetService**: pedestals, incubation timers, Ascension and mutation rolls, inventory (store/place/sell/vault)
 - **BiomeService**: speed gates, luck-weighted orb spawning, rare-spawn announcements, dropped orbs
-- **GuardianService**: patrol/chase/return AI with Slow Pulse and Blink abilities, night speed scaling
+- **GuardianService**: stealth AI with vision cones, line of sight, hearing, "!"/"?" states, backup calls, Slow Pulse/Blink
+- **CompanionService**: a chosen spirit follows you and grants a biome power (dash, freeze, invisibility, ward…)
 - **BaseService**: base assignment, lock/cooldown, Soul Shield, new-player protection, intruder push-out
 - **UpgradeService / RebirthService**: Speed, Treadmill, Harness, Pedestals; rebirth with vault and perk shop
 - **MonetizationService**: pass ownership + idempotent `ProcessReceipt` (save-before-ack) for 16 products

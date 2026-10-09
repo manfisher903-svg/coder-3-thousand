@@ -18,7 +18,8 @@ You are a **soul thief**. Glowing **Soul Orbs** float in guarded spirit biomes. 
  │ 1. SPAWN in your base (Soul Sanctum) with 3 pedestals                     │
  │ 2. RUN to the deepest biome your Speed allows (speed gates block the rest)│
  │ 3. STEAL a Soul Orb (hold-E prompt; rarer = longer hold)                  │
- │ 4. ESCAPE: carrying slows you (heavier = rarer); guardian gives chase     │
+ │ 4. HEIST: sneak past guardian vision cones, hide behind cover, use your   │
+ │    Companion's power; get spotted (!) and they chase + call backup        │
  │      ↳ caught or bonked → orb drops → anyone can grab it                  │
  │ 5. DELIVER: walk into your base → orb auto-places on a free pedestal      │
  │ 6. INCUBATE: timer counts down. Orb is STEALABLE by other players.        │
@@ -37,6 +38,8 @@ Why it hooks players:
 - **Your base is always at risk.** Incubating orbs get stolen, which creates drama, revenge, and urgency to buy Instant Hatch, Shield, or Lock.
 - **Visible progress.** Pedestals fill with glowing pets, and the number goes up every second.
 - **Social proof.** Server-wide announcements ("X hatched a Mythic Soul Devourer!") make everyone want that too.
+
+> **What makes it different from other steal games:** see [09-what-makes-it-different.md](09-what-makes-it-different.md): stealth heists, Companion powers, Soul Fusion and Haunt revenge.
 
 ## 1.3 Biomes
 

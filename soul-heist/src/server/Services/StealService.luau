@@ -12,6 +12,7 @@
 ]]
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -19,6 +20,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local PetConfig = require(Shared.Config.PetConfig)
 local BiomeConfig = require(Shared.Config.BiomeConfig)
 local MonetizationConfig = require(Shared.Config.MonetizationConfig)
+local AbilityConfig = require(Shared.Config.AbilityConfig)
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Remotes = require(Shared.Remotes)
@@ -38,6 +40,8 @@ local carrying: { [Player]: Carried } = {}
 local slows: { [Player]: { { Factor: number, Until: number } } } = {}
 local highlights: { [Player]: Highlight } = {}
 local lastFullWarning: { [Player]: number } = {}
+local hiddenUntil: { [Player]: number } = {} -- guardians can't perceive (Grave Veil / Shadow Cloak)
+local wardUntil: { [Player]: number } = {} -- next knock-loose is blocked (Halo Ward)
 
 local function getRoot(player: Player): BasePart?
 	local character = player.Character
@@ -73,6 +77,9 @@ function StealService:RefreshWalkSpeed(player: Player)
 	if carried then
 		local phantom = Services.MonetizationService:HasPass(player, "PhantomSteps")
 		speed = Formulas.CarriedSpeed(speed, carried.Orb.Rarity, data.CarryLevel, phantom)
+	end
+	if player:GetAttribute("Sneaking") then
+		speed *= AbilityConfig.Stealth.SneakSpeedMult
 	end
 	local now = os.clock()
 	local list = slows[player]
@@ -112,6 +119,74 @@ function StealService:Knockback(player: Player, fromPosition: Vector3, power: nu
 	end
 	Services.AntiExploitService:Grace(player, 1.5)
 	Remotes.Event("Knockback"):FireClient(player, direction.Unit * power + Vector3.new(0, power * 0.5, 0))
+end
+
+-- Stealth & ability hooks ------------------------------------------------------------------------------
+function StealService:IsHiddenFromGuardians(player: Player): boolean
+	return (hiddenUntil[player] or 0) > os.clock()
+end
+
+function StealService:HideFromGuardians(player: Player, seconds: number)
+	hiddenUntil[player] = math.max(hiddenUntil[player] or 0, os.clock() + seconds)
+end
+
+function StealService:Ward(player: Player, seconds: number)
+	wardUntil[player] = os.clock() + seconds
+	player:SetAttribute("Warded", true)
+	task.delay(seconds, function()
+		if (wardUntil[player] or 0) <= os.clock() then
+			player:SetAttribute("Warded", nil)
+		end
+	end)
+end
+
+-- Guardians and bonks call this instead of Drop: Halo Ward can block it. Returns true if the soul dropped.
+function StealService:TryKnockLoose(player: Player, reason: string): boolean
+	if not carrying[player] then
+		return false
+	end
+	if (wardUntil[player] or 0) > os.clock() then
+		wardUntil[player] = 0
+		player:SetAttribute("Warded", nil)
+		Services.PlayerDataService:Notify(player, "Halo Ward blocked it!", "success")
+		return false
+	end
+	self:Drop(player, reason)
+	return true
+end
+
+-- Sends the player flying with a velocity (client applies it - it owns its character physics).
+function StealService:Launch(player: Player, velocity: Vector3)
+	Services.AntiExploitService:Grace(player, 2)
+	Remotes.Event("Knockback"):FireClient(player, velocity)
+end
+
+function StealService:SetSneak(player: Player, on: boolean)
+	player:SetAttribute("Sneaking", on or nil)
+	self:RefreshWalkSpeed(player)
+end
+
+-- Haunt: the robbed owner curses the thief (once per robbery, within a short window).
+function StealService:Haunt(owner: Player)
+	local thiefId = owner:GetAttribute("HauntThiefId")
+	local untilTime = owner:GetAttribute("HauntUntil") or 0
+	if not thiefId or Workspace:GetServerTimeNow() > untilTime then
+		return { ok = false, msg = "Nobody to haunt right now." }
+	end
+	owner:SetAttribute("HauntThiefId", nil)
+	owner:SetAttribute("HauntUntil", nil)
+	local thief = Players:GetPlayerByUserId(thiefId)
+	local carried = thief and carrying[thief]
+	if not thief or not carried or carried.StolenFromUserId ~= owner.UserId then
+		return { ok = false, msg = "The thief already got away..." }
+	end
+	local haunt = AbilityConfig.Haunt
+	self:ApplySlow(thief, haunt.SlowFactor, haunt.Duration)
+	if highlights[thief] then
+		highlights[thief].FillColor = Color3.fromRGB(140, 40, 255)
+	end
+	Services.PlayerDataService:Notify(thief, owner.DisplayName .. " is HAUNTING you! You're slowed!", "error")
+	return { ok = true, msg = "You haunted " .. thief.DisplayName .. "! Catch them!" }
 end
 
 -- Carry state -----------------------------------------------------------------------------------------
@@ -255,7 +330,10 @@ function StealService:TryStealFromBase(thief: Player, ownerUserId: number, index
 		ownerData.Stats.TimesRobbed += 1
 		pds:MarkDirty(owner)
 	end
-	pds:Notify(owner, string.format("%s is stealing your %s Soul! Bonk them to get it back!", thief.DisplayName, orb.Rarity), "error")
+	-- Give the owner a short window to Haunt the thief
+	owner:SetAttribute("HauntThiefId", thief.UserId)
+	owner:SetAttribute("HauntUntil", Workspace:GetServerTimeNow() + AbilityConfig.Haunt.WindowSeconds)
+	pds:Notify(owner, string.format("%s is stealing your %s Soul! HAUNT them (H) and bonk them!", thief.DisplayName, orb.Rarity), "error")
 	pds:Notify(thief, "You grabbed a " .. orb.Rarity .. " Soul! RUN HOME!", "success")
 	local rarity = PetConfig.GetRarity(orb.Rarity)
 	if rarity.Announce then
@@ -350,7 +428,21 @@ function StealService:Start()
 		self:Drop(player, nil) -- leaving with a soul drops it for everyone else
 		slows[player] = nil
 		lastFullWarning[player] = nil
+		hiddenUntil[player] = nil
+		wardUntil[player] = nil
 	end)
+
+	Remotes.Event("SetSneak").OnServerEvent:Connect(function(player, on)
+		if RateLimiter.Check(player, "Sneak", 0.2) then
+			self:SetSneak(player, on == true)
+		end
+	end)
+	Remotes.Function("Haunt").OnServerInvoke = function(player)
+		if not RateLimiter.Check(player, "Haunt", 0.5) then
+			return { ok = false }
+		end
+		return self:Haunt(player)
+	end
 
 	Remotes.Event("DropOrb").OnServerEvent:Connect(function(player)
 		if RateLimiter.Check(player, "DropOrb", 0.5) then

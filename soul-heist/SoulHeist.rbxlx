@@ -13,6 +13,70 @@
         </Properties>
         <Item class="ModuleScript" referent="3">
           <Properties>
+            <string name="Name">AbilityConfig</string>
+            <string name="Source"><![CDATA[--[[
+	AbilityConfig
+	Companion spirits: pick ONE spirit to follow you. Its biome decides your active ability (key Q).
+	Rarer companions recharge faster (-6% cooldown per rarity tier above Common; mutated -10% more).
+	This is the core difference from other steal games: your spirits help you pull off the heist.
+]]
+
+export type Ability = {
+	Id: string,
+	Name: string,
+	Desc: string,
+	Cooldown: number,
+	Power: number?,
+	Radius: number?,
+	Duration: number?,
+	SpeedMult: number?,
+}
+
+local AbilityConfig = {}
+
+AbilityConfig.ByBiome = {
+	Meadow = { Id = "WispRush", Name = "Wisp Rush", Desc = "+35% speed for 3s", Cooldown = 18, SpeedMult = 1.35, Duration = 3 },
+	Ember = { Id = "FlameDash", Name = "Flame Dash", Desc = "Burst forward", Cooldown = 14, Power = 110 },
+	Frost = { Id = "FrostNova", Name = "Frost Nova", Desc = "Freeze guardians within 30 studs for 3s", Cooldown = 25, Radius = 30, Duration = 3 },
+	Crypt = { Id = "GraveVeil", Name = "Grave Veil", Desc = "Guardians can't see you for 4s", Cooldown = 28, Duration = 4 },
+	Storm = { Id = "LightningStep", Name = "Lightning Step", Desc = "Huge dash + 20% speed for 2s", Cooldown = 16, Power = 160, SpeedMult = 1.2, Duration = 2 },
+	Void = { Id = "ShadowCloak", Name = "Shadow Cloak", Desc = "Invisible to guardians AND players for 5s", Cooldown = 32, Duration = 5 },
+	Celestial = { Id = "HaloWard", Name = "Halo Ward", Desc = "Blocks the next catch or bonk (8s)", Cooldown = 30, Duration = 8 },
+	Abyssal = { Id = "ReapersRend", Name = "Reaper's Rend", Desc = "Freeze nearby guardians + 40% speed for 4s", Cooldown = 35, Radius = 35, Duration = 4, SpeedMult = 1.4 },
+} :: { [string]: Ability }
+
+AbilityConfig.CooldownReductionPerRarity = 0.06
+AbilityConfig.MutatedCooldownReduction = 0.10
+
+-- Stealth tuning used by GuardianService
+AbilityConfig.Stealth = {
+	ViewDot = 0.25, -- guardians see in a ~150° cone in front of them
+	HearingRadius = 10, -- noticed from any direction this close
+	SneakHearingRadius = 4,
+	SneakSightMult = 0.55, -- sneaking shrinks how far guardians can see you
+	SneakSpeedMult = 0.6, -- ...but you move slower
+	NightSightMult = 0.85, -- darker nights = harder to spot (but guardians are faster)
+	GlowPerRarity = 0.06, -- rarer souls glow brighter = spotted from further away
+	LoseTrackSeconds = 2.5, -- break line of sight this long and the guardian gives up
+	ChaseRangeMult = 1.6, -- keeps chasing up to AggroRadius x this
+	BackupRadius = 45, -- spotting guardian alerts others this close
+}
+
+-- Haunt: after being robbed, the owner can curse the thief once (slow) within this window.
+AbilityConfig.Haunt = { WindowSeconds = 20, SlowFactor = 0.55, Duration = 5 }
+
+function AbilityConfig.GetCooldown(biomeId: string, rarityOrder: number, mutated: boolean): number
+	local ability = AbilityConfig.ByBiome[biomeId] or AbilityConfig.ByBiome.Meadow
+	local reduction = (rarityOrder - 1) * AbilityConfig.CooldownReductionPerRarity + (mutated and AbilityConfig.MutatedCooldownReduction or 0)
+	return math.max(4, ability.Cooldown * (1 - reduction))
+end
+
+return AbilityConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="4">
+          <Properties>
             <string name="Name">BiomeConfig</string>
             <string name="Source"><![CDATA[--[[
 	BiomeConfig
@@ -186,7 +250,7 @@ return BiomeConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="4">
+        <Item class="ModuleScript" referent="5">
           <Properties>
             <string name="Name">EconomyConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -263,7 +327,7 @@ return EconomyConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="5">
+        <Item class="ModuleScript" referent="6">
           <Properties>
             <string name="Name">EventConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -322,7 +386,7 @@ return EventConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="6">
+        <Item class="ModuleScript" referent="7">
           <Properties>
             <string name="Name">GameConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -394,7 +458,7 @@ return GameConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="7">
+        <Item class="ModuleScript" referent="8">
           <Properties>
             <string name="Name">MonetizationConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -489,7 +553,7 @@ return MonetizationConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="8">
+        <Item class="ModuleScript" referent="9">
           <Properties>
             <string name="Name">PetConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -606,7 +670,7 @@ return PetConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="9">
+        <Item class="ModuleScript" referent="10">
           <Properties>
             <string name="Name">RewardConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -672,7 +736,7 @@ return RewardConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Formulas</string>
           <string name="Source"><![CDATA[--[[
@@ -788,7 +852,7 @@ return Formulas
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--[[
@@ -805,6 +869,7 @@ return Formulas
 		Knockback(velocity: Vector3)         client applies it to its own character (it owns its physics)
 	Client -> Server (RemoteEvent)
 		DropOrb()                            voluntarily drop the carried soul
+		SetSneak(on: boolean)                sneak mode (slower, much harder for guardians to spot)
 	Client -> Server (RemoteFunction) - all return { ok: boolean, msg: string? }
 		GetState()                           returns snapshot
 		RequestUpgrade(kind, amount)         kind: "Speed"|"Carry"|"Treadmill"|"Pedestal"
@@ -817,6 +882,9 @@ return Formulas
 		ClaimPlaytime(index)                 claim a session playtime gift
 		ClaimQuest(index | "Bonus")          claim a finished daily quest / the all-quests bonus
 		BuyEventItem(itemId)                 buy from the seasonal event shop with Candy
+		SetCompanion(petId | nil)            choose the spirit that follows you (gives your ability)
+		UseAbility()                         use your companion's ability
+		Haunt()                              curse the player who just robbed you
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -824,10 +892,11 @@ local RunService = game:GetService("RunService")
 
 local Remotes = {}
 
-Remotes.EventNames = { "Notify", "StateChanged", "HatchResult", "Announce", "Knockback", "DropOrb" }
+Remotes.EventNames = { "Notify", "StateChanged", "HatchResult", "Announce", "Knockback", "DropOrb", "SetSneak" }
 Remotes.FunctionNames = {
 	"GetState", "RequestUpgrade", "RequestRebirth", "BuyPerk", "RedeemCode", "PetAction", "RequestLock",
 	"ClaimDaily", "ClaimPlaytime", "ClaimQuest", "BuyEventItem",
+	"SetCompanion", "UseAbility", "Haunt",
 }
 
 local FOLDER_NAME = "Remotes"
@@ -872,7 +941,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Types</string>
           <string name="Source"><![CDATA[--[[
@@ -945,11 +1014,11 @@ return {}
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="13">
+      <Item class="Folder" referent="14">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">Format</string>
             <string name="Source"><![CDATA[--[[
@@ -1000,7 +1069,7 @@ return Format
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">Signal</string>
             <string name="Source"><![CDATA[--[[
@@ -1047,19 +1116,19 @@ return Signal
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="16">
+  <Item class="ServerScriptService" referent="17">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="17">
+    <Item class="Folder" referent="18">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Folder" referent="18">
+      <Item class="Folder" referent="19">
         <Properties>
           <string name="Name">Config</string>
         </Properties>
-        <Item class="ModuleScript" referent="19">
+        <Item class="ModuleScript" referent="20">
           <Properties>
             <string name="Name">Codes</string>
             <string name="Source"><![CDATA[--[[
@@ -1101,7 +1170,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="Script" referent="20">
+      <Item class="Script" referent="21">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -1145,6 +1214,7 @@ local ORDER = {
 	"EventService",
 	"RewardService",
 	"LeaderboardService",
+	"CompanionService",
 }
 
 local Services = {}
@@ -1174,11 +1244,11 @@ print("[SoulHeist] Server ready -", #ORDER, "services running")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="21">
+      <Item class="Folder" referent="22">
         <Properties>
           <string name="Name">Services</string>
         </Properties>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">AntiExploitService</string>
             <string name="Source"><![CDATA[--[[
@@ -1289,7 +1359,7 @@ return AntiExploitService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">BaseService</string>
             <string name="Source"><![CDATA[--[[
@@ -1596,7 +1666,7 @@ return BaseService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">BiomeService</string>
             <string name="Source"><![CDATA[--[[
@@ -1900,7 +1970,7 @@ return BiomeService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">CodesService</string>
             <string name="Source"><![CDATA[--[[
@@ -1975,7 +2045,199 @@ return CodesService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="27">
+          <Properties>
+            <string name="Name">CompanionService</string>
+            <string name="Source"><![CDATA[--[[
+	CompanionService
+	Pick one of your spirits as a Companion: it floats next to you (rendered by every client from
+	player attributes) and gives you an active ability based on its biome (AbilityConfig.ByBiome).
+	Rarer / mutated companions recharge faster. The companion keeps earning on its pedestal.
+
+	Player attributes (for UI + client-side companion visuals):
+		CompanionSpecies, CompanionRarity, CompanionMutation, AbilityId, AbilityName, AbilityCooldown,
+		AbilityReadyAt (Workspace:GetServerTimeNow() timestamp)
+]]
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local PetConfig = require(Shared.Config.PetConfig)
+local AbilityConfig = require(Shared.Config.AbilityConfig)
+local Remotes = require(Shared.Remotes)
+local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+
+local CompanionService = {}
+
+local Services: any
+local readyAt: { [Player]: number } = {} -- os.clock() time the ability is ready
+local ATTRIBUTES = { "CompanionSpecies", "CompanionRarity", "CompanionMutation", "AbilityId", "AbilityName", "AbilityCooldown", "AbilityReadyAt" }
+
+local function getCompanion(player: Player): (any?, any?)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.CompanionId == "" then
+		return nil, data
+	end
+	return data.Pets[data.CompanionId], data
+end
+
+-- Re-syncs attributes; clears the companion if the pet no longer exists (sold, fused, lost in rebirth).
+function CompanionService:Refresh(player: Player)
+	local pet, data = getCompanion(player)
+	if data and data.CompanionId ~= "" and not pet then
+		data.CompanionId = ""
+	end
+	if not pet then
+		for _, name in ipairs(ATTRIBUTES) do
+			player:SetAttribute(name, nil)
+		end
+		return
+	end
+	local ability = AbilityConfig.ByBiome[pet.Biome] or AbilityConfig.ByBiome.Meadow
+	local cooldown = AbilityConfig.GetCooldown(pet.Biome, PetConfig.GetRarity(pet.Rarity).Order, pet.Mutation ~= "None")
+	player:SetAttribute("CompanionSpecies", pet.Species)
+	player:SetAttribute("CompanionRarity", pet.Rarity)
+	player:SetAttribute("CompanionMutation", pet.Mutation)
+	player:SetAttribute("AbilityId", ability.Id)
+	player:SetAttribute("AbilityName", ability.Name)
+	player:SetAttribute("AbilityCooldown", cooldown)
+	local remaining = math.max(0, (readyAt[player] or 0) - os.clock())
+	player:SetAttribute("AbilityReadyAt", Workspace:GetServerTimeNow() + remaining)
+end
+
+function CompanionService:SetCompanion(player: Player, petId: any)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return { ok = false }
+	end
+	if petId == nil or petId == "" then
+		data.CompanionId = ""
+		self:Refresh(player)
+		Services.PlayerDataService:MarkDirty(player)
+		return { ok = true, msg = "Companion dismissed." }
+	end
+	petId = tostring(petId)
+	local pet = data.Pets[petId]
+	if not pet then
+		return { ok = false, msg = "Spirit not found." }
+	end
+	data.CompanionId = petId
+	self:Refresh(player)
+	Services.PlayerDataService:MarkDirty(player)
+	local ability = AbilityConfig.ByBiome[pet.Biome] or AbilityConfig.ByBiome.Meadow
+	return { ok = true, msg = string.format("%s follows you! Ability: %s (Q)", pet.Species, ability.Name) }
+end
+
+local function freezeEffect(player: Player, ability: any)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return 0
+	end
+	return Services.GuardianService:FreezeNear(root.Position, ability.Radius or 30, ability.Duration or 3)
+end
+
+-- Temporarily fades a character (Shadow Cloak). Restores original transparency afterwards.
+local function cloak(player: Player, seconds: number)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local original: { [BasePart]: number } = {}
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			original[part] = part.Transparency
+			part.Transparency = math.max(part.Transparency, 0.92)
+		end
+	end
+	task.delay(seconds, function()
+		for part, value in pairs(original) do
+			if part.Parent then
+				part.Transparency = value
+			end
+		end
+	end)
+end
+
+function CompanionService:UseAbility(player: Player)
+	local pet = getCompanion(player)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not pet then
+		return { ok = false, msg = "Choose a Companion spirit in the Spirits menu first!" }
+	end
+	if not root then
+		return { ok = false }
+	end
+	local now = os.clock()
+	if now < (readyAt[player] or 0) then
+		return { ok = false, msg = string.format("Recharging (%.0fs)", readyAt[player] - now) }
+	end
+	local ability = AbilityConfig.ByBiome[pet.Biome] or AbilityConfig.ByBiome.Meadow
+	local steal = Services.StealService
+	local id = ability.Id
+	local msg = ability.Name .. "!"
+
+	if id == "WispRush" then
+		steal:ApplySlow(player, ability.SpeedMult or 1.35, ability.Duration or 3)
+	elseif id == "FlameDash" or id == "LightningStep" then
+		local look = root.CFrame.LookVector
+		steal:Launch(player, Vector3.new(look.X, 0, look.Z).Unit * (ability.Power or 110) + Vector3.new(0, 18, 0))
+		if ability.SpeedMult then
+			steal:ApplySlow(player, ability.SpeedMult, ability.Duration or 2)
+		end
+	elseif id == "FrostNova" then
+		local frozen = freezeEffect(player, ability)
+		msg = string.format("Frost Nova froze %d guardian(s)!", frozen)
+	elseif id == "GraveVeil" then
+		steal:HideFromGuardians(player, ability.Duration or 4)
+	elseif id == "ShadowCloak" then
+		steal:HideFromGuardians(player, ability.Duration or 5)
+		cloak(player, ability.Duration or 5)
+	elseif id == "HaloWard" then
+		steal:Ward(player, ability.Duration or 8)
+	elseif id == "ReapersRend" then
+		local frozen = freezeEffect(player, ability)
+		steal:ApplySlow(player, ability.SpeedMult or 1.4, ability.Duration or 4)
+		msg = string.format("Reaper's Rend! %d guardian(s) frozen!", frozen)
+	end
+
+	local cooldown = AbilityConfig.GetCooldown(pet.Biome, PetConfig.GetRarity(pet.Rarity).Order, pet.Mutation ~= "None")
+	readyAt[player] = now + cooldown
+	player:SetAttribute("AbilityReadyAt", Workspace:GetServerTimeNow() + cooldown)
+	return { ok = true, msg = msg }
+end
+
+function CompanionService:Init(services)
+	Services = services
+	Services.PlayerDataService.ProfileLoaded:Connect(function(player)
+		self:Refresh(player)
+	end)
+end
+
+function CompanionService:Start()
+	Players.PlayerRemoving:Connect(function(player)
+		readyAt[player] = nil
+	end)
+	Remotes.Function("SetCompanion").OnServerInvoke = function(player, petId)
+		if not RateLimiter.Check(player, "SetCompanion", 0.5) then
+			return { ok = false, msg = "Slow down!" }
+		end
+		return self:SetCompanion(player, petId)
+	end
+	Remotes.Function("UseAbility").OnServerInvoke = function(player)
+		if not RateLimiter.Check(player, "UseAbility", 0.25) then
+			return { ok = false }
+		end
+		return self:UseAbility(player)
+	end
+end
+
+return CompanionService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="28">
           <Properties>
             <string name="Name">DayNightService</string>
             <string name="Source"><![CDATA[--[[
@@ -2110,7 +2372,7 @@ return DayNightService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">EconomyService</string>
             <string name="Source"><![CDATA[--[[
@@ -2391,7 +2653,7 @@ return EconomyService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="30">
           <Properties>
             <string name="Name">EventService</string>
             <string name="Source"><![CDATA[--[[
@@ -2728,30 +2990,34 @@ return EventService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">GuardianService</string>
             <string name="Source"><![CDATA[--[[
 	GuardianService
-	Lightweight guardian chase AI. One loop drives every guardian (cheap: ~20-30 NPCs per server).
+	Stealth-heist guardian AI. One loop drives every guardian.
 
-	States
-		Patrol : wander to random points near home inside the biome zone
-		Chase  : target = nearest player CARRYING a soul within AggroRadius and inside the leash
-		         (biome zone + LEASH_PADDING). Leads the target slightly using its velocity.
-		Return : target escaped the leash -> walk home, then Patrol
-	Catch  : within CatchRadius -> the player drops the soul + knockback. Per-guardian cooldown.
-	Abilities (optional per biome)
-		SlowPulse : AoE slow around the guardian (Frost / Crypt / Celestial)
-		Blink     : teleports just behind a fleeing target (Storm / Void / Abyssal)
-	Night/Eclipse multiply guardian speed (DayNightService).
+	Guardians don't just chase whoever is closest. They have to SEE you:
+	  * Vision cone (~150° in front) + line of sight: rocks, ruins and walls hide you
+	  * Hearing: anyone very close is noticed from any direction (smaller while sneaking)
+	  * Sight range grows with the rarity of the soul you carry (rare souls glow brighter),
+	    shrinks while you sneak, and is shorter at night (but guardians move faster)
+	  * Break line of sight for 2.5s and they lose you ("?") and walk back
+	  * A guardian that spots you ("!") alerts other guardians nearby (backup)
+	States: Patrol -> Chase -> Search ("?") -> Return
+	Catch: within CatchRadius -> soul knocked loose (unless protected by Halo Ward) + knockback.
+	Abilities per biome: SlowPulse (Frost/Crypt/Celestial), Blink (Storm/Void/Abyssal).
+	Companion abilities can freeze guardians (FreezeNear) or hide players from them.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BiomeConfig = require(Shared.Config.BiomeConfig)
+local PetConfig = require(Shared.Config.PetConfig)
+local AbilityConfig = require(Shared.Config.AbilityConfig)
 local ModelFactory = require(script.Parent.Parent.World.ModelFactory)
 
 local GuardianService = {}
@@ -2767,8 +3033,12 @@ type Guardian = {
 	Biome: any, -- BiomeRuntime
 	Config: any,
 	Home: Vector3,
-	State: "Patrol" | "Chase" | "Return",
+	State: "Patrol" | "Chase" | "Search" | "Return",
 	Target: Player?,
+	LastSeenAt: number,
+	LastSeenPosition: Vector3?,
+	FrozenUntil: number,
+	Info: Instance?,
 	NextPatrolAt: number,
 	NextCatchAt: number,
 	NextAbilityAt: number,
@@ -2811,27 +3081,136 @@ local function spawnGuardian(runtime: any, index: number): Guardian?
 		Home = home,
 		State = "Patrol",
 		Target = nil,
+		LastSeenAt = 0,
+		LastSeenPosition = nil,
+		FrozenUntil = 0,
+		Info = model:FindFirstChild("Info", true),
 		NextPatrolAt = 0,
 		NextCatchAt = 0,
 		NextAbilityAt = os.clock() + rng:NextNumber(2, 5),
 	}
 end
 
--- Finds the closest player carrying a soul inside this guardian's aggro + leash.
+local Stealth = AbilityConfig.Stealth
+
+-- Line of sight from the guardian's eyes to the player. Non-solid parts (orbs, zones, effects) don't block.
+local function hasLineOfSight(g: Guardian, player: Player, root: BasePart): boolean
+	local origin = g.Root.Position + Vector3.new(0, 2 * (g.Config.Scale or 1), 0)
+	local exclude: { Instance } = { g.Model }
+	if player.Character then
+		table.insert(exclude, player.Character)
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	for _ = 1, 4 do
+		params.FilterDescendantsInstances = exclude
+		local result = Workspace:Raycast(origin, root.Position - origin, params)
+		if not result then
+			return true
+		end
+		if result.Instance.CanCollide and result.Instance.Transparency < 0.9 then
+			return false -- blocked by something solid
+		end
+		table.insert(exclude, result.Instance)
+	end
+	return true
+end
+
+-- Can this guardian currently perceive this (soul-carrying) player?
+local function canPerceive(g: Guardian, player: Player, root: BasePart): boolean
+	if Services.StealService:IsHiddenFromGuardians(player) then
+		return false
+	end
+	local offset = root.Position - g.Root.Position
+	local distance = offset.Magnitude
+	local sneaking = player:GetAttribute("Sneaking") == true
+	local hearing = sneaking and Stealth.SneakHearingRadius or Stealth.HearingRadius
+	if distance <= hearing then
+		return true
+	end
+	local carried = Services.StealService:GetCarried(player)
+	local glow = 1 + (carried and PetConfig.GetRarity(carried.Orb.Rarity).Order or 0) * Stealth.GlowPerRarity
+	local sight = g.Config.AggroRadius * glow
+	if sneaking then
+		sight *= Stealth.SneakSightMult
+	end
+	if Services.DayNightService:IsNight() then
+		sight *= Stealth.NightSightMult
+	end
+	if distance > sight then
+		return false
+	end
+	local look = g.Root.CFrame.LookVector
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	if flat.Magnitude > 0.1 and Vector3.new(look.X, 0, look.Z).Unit:Dot(flat.Unit) < Stealth.ViewDot then
+		return false -- outside the vision cone
+	end
+	return hasLineOfSight(g, player, root)
+end
+
+local function setIndicator(g: Guardian, mark: string?)
+	local text = g.Config.Name
+	if mark then
+		text = mark .. " " .. g.Config.Name .. " " .. mark
+	end
+	ModelFactory.SetLine(g.Info, 1, text, mark == "!" and Color3.fromRGB(255, 40, 40) or (mark and Color3.fromRGB(255, 220, 80) or Color3.fromRGB(255, 80, 80)))
+end
+
+local function isValidTarget(g: Guardian, player: Player, root: BasePart?): boolean
+	return root ~= nil
+		and Services.StealService:IsCarrying(player)
+		and Services.BiomeService:IsInZone(g.Biome, root.Position, LEASH_PADDING)
+end
+
+-- Picks a newly-spotted carrier (closest one this guardian can perceive).
 local function findTarget(g: Guardian): (Player?, BasePart?)
-	local bestPlayer, bestRoot, bestDistance = nil, nil, g.Config.AggroRadius
+	local bestPlayer, bestRoot, bestDistance = nil, nil, math.huge
 	for _, player in ipairs(Players:GetPlayers()) do
-		if Services.StealService:IsCarrying(player) then
-			local root = getRoot(player)
-			if root and Services.BiomeService:IsInZone(g.Biome, root.Position, LEASH_PADDING) then
-				local distance = (root.Position - g.Root.Position).Magnitude
-				if distance < bestDistance then
-					bestPlayer, bestRoot, bestDistance = player, root, distance
-				end
+		local root = getRoot(player)
+		if root and isValidTarget(g, player, root) and canPerceive(g, player, root) then
+			local distance = (root.Position - g.Root.Position).Magnitude
+			if distance < bestDistance then
+				bestPlayer, bestRoot, bestDistance = player, root, distance
 			end
 		end
 	end
 	return bestPlayer, bestRoot
+end
+
+local function startChase(g: Guardian, player: Player, root: BasePart, alertOthers: boolean)
+	local wasChasing = g.State == "Chase" and g.Target == player
+	g.State = "Chase"
+	g.Target = player
+	g.LastSeenAt = os.clock()
+	g.LastSeenPosition = root.Position
+	setIndicator(g, "!")
+	if wasChasing then
+		return
+	end
+	if alertOthers then
+		Services.PlayerDataService:Notify(player, g.Config.Name .. " spotted you! RUN or break line of sight!", "error")
+		for _, other in ipairs(guardians) do
+			if other ~= g and other.Biome == g.Biome and other.State ~= "Chase" and os.clock() >= other.FrozenUntil
+				and (other.Root.Position - g.Root.Position).Magnitude <= Stealth.BackupRadius then
+				startChase(other, player, root, false)
+			end
+		end
+	end
+end
+
+-- Companion ability hook: freezes every guardian within radius. Returns how many were frozen.
+function GuardianService:FreezeNear(position: Vector3, radius: number, seconds: number): number
+	local count = 0
+	for _, g in ipairs(guardians) do
+		if (g.Root.Position - position).Magnitude <= radius then
+			g.FrozenUntil = os.clock() + seconds
+			g.State = "Return"
+			g.Target = nil
+			setIndicator(g, "*")
+			count += 1
+		end
+	end
+	return count
 end
 
 local function pulseEffect(position: Vector3, radius: number, color: Color3)
@@ -2882,41 +3261,75 @@ local function tick(g: Guardian)
 		g.Model:PivotTo(CFrame.new(g.Home + Vector3.new(0, 4, 0)))
 	end
 	local now = os.clock()
-	g.Humanoid.WalkSpeed = g.Config.Speed * Services.DayNightService:GetGuardianSpeedMult()
 
-	local target, targetRoot = findTarget(g)
-	if target and targetRoot then
-		g.State = "Chase"
-		g.Target = target
-		local distance = (targetRoot.Position - g.Root.Position).Magnitude
-		if distance <= g.Config.CatchRadius and now >= g.NextCatchAt then
-			g.NextCatchAt = now + CATCH_COOLDOWN
-			Services.StealService:Drop(target, g.Config.Name .. " caught you! Your soul dropped!")
-			Services.StealService:Knockback(target, g.Root.Position, 60)
-			Services.StealService:ApplySlow(target, 0.5, 1)
-			return
-		end
-		useAbility(g, targetRoot, distance)
-		local lead = targetRoot.AssemblyLinearVelocity * 0.3
-		g.Humanoid:MoveTo(targetRoot.Position + Vector3.new(lead.X, 0, lead.Z))
+	-- Frozen by a Frost Nova / Reaper's Rend
+	if now < g.FrozenUntil then
+		g.Humanoid.WalkSpeed = 0
+		g.Humanoid:MoveTo(g.Root.Position)
 		return
 	end
+	g.Humanoid.WalkSpeed = g.Config.Speed * Services.DayNightService:GetGuardianSpeedMult()
 
-	if g.State == "Chase" then
+	-- Keep chasing the current target while we can see them (or saw them very recently)
+	if g.State == "Chase" or g.State == "Search" then
+		local target = g.Target
+		local root = target and getRoot(target)
+		if target and root and isValidTarget(g, target, root)
+			and (root.Position - g.Root.Position).Magnitude <= g.Config.AggroRadius * Stealth.ChaseRangeMult then
+			if canPerceive(g, target, root) then
+				startChase(g, target, root, false)
+			elseif now - g.LastSeenAt > Stealth.LoseTrackSeconds then
+				target = nil -- lost them
+			else
+				g.State = "Search"
+				setIndicator(g, "?")
+			end
+		else
+			target = nil
+		end
+
+		if target and root then
+			local distance = (root.Position - g.Root.Position).Magnitude
+			if g.State == "Chase" and distance <= g.Config.CatchRadius and now >= g.NextCatchAt then
+				g.NextCatchAt = now + CATCH_COOLDOWN
+				if Services.StealService:TryKnockLoose(target, g.Config.Name .. " caught you! Your soul dropped!") then
+					Services.StealService:Knockback(target, g.Root.Position, 60)
+					Services.StealService:ApplySlow(target, 0.5, 1)
+				end
+				return
+			end
+			if g.State == "Chase" then
+				useAbility(g, root, distance)
+				local lead = root.AssemblyLinearVelocity * 0.3
+				g.Humanoid:MoveTo(root.Position + Vector3.new(lead.X, 0, lead.Z))
+			elseif g.LastSeenPosition then
+				g.Humanoid:MoveTo(g.LastSeenPosition) -- search where we last saw them
+			end
+			return
+		end
 		g.State = "Return"
 		g.Target = nil
+		setIndicator(g, "?")
+	end
+
+	-- Look for new intruders
+	local spotted, spottedRoot = findTarget(g)
+	if spotted and spottedRoot then
+		startChase(g, spotted, spottedRoot, true)
+		return
 	end
 
 	if g.State == "Return" then
 		if (g.Root.Position - g.Home).Magnitude < 8 then
 			g.State = "Patrol"
+			setIndicator(g, nil)
 		else
 			g.Humanoid:MoveTo(g.Home)
 		end
 		return
 	end
 
-	-- Patrol
+	-- Patrol: wander near home (the vision cone follows the walking direction)
 	if now >= g.NextPatrolAt then
 		g.NextPatrolAt = now + rng:NextNumber(3, 7)
 		local offset = Vector3.new(rng:NextNumber(-30, 30), 0, rng:NextNumber(-30, 30))
@@ -2959,7 +3372,7 @@ return GuardianService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">LeaderboardService</string>
             <string name="Source"><![CDATA[--[[
@@ -3125,7 +3538,7 @@ return LeaderboardService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">MonetizationService</string>
             <string name="Source"><![CDATA[--[[
@@ -3447,7 +3860,7 @@ return MonetizationService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">PetService</string>
             <string name="Source"><![CDATA[--[[
@@ -3856,6 +4269,9 @@ local function petAction(player: Player, action: any, arg1: any, arg2: any)
 		if pet.Locked then
 			return { ok = false, msg = "Unlock the spirit first." }
 		end
+		if data.CompanionId == petId then
+			return { ok = false, msg = "That's your Companion! Pick another one first." }
+		end
 		local value = math.floor(Formulas.PetIncome(pet.Rarity, pet.Biome, pet.Mutation) * PetConfig.SellSeconds)
 		data.Pets[petId] = nil
 		Services.EconomyService:AddEssence(player, value)
@@ -3884,6 +4300,47 @@ local function petAction(player: Player, action: any, arg1: any, arg2: any)
 		pet.Locked = wantLocked
 		Services.PlayerDataService:MarkDirty(player)
 		return { ok = true }
+	end
+	if action == "FuseRarity" then
+		-- Soul Fusion: 3 inventory spirits of the same rarity -> 1 soul of the NEXT rarity.
+		-- Uses the 3 lowest-income unlocked, non-companion spirits. Result comes from the best biome
+		-- among the three, and has a 50% chance to inherit the best mutation among them.
+		local rarityId = tostring(arg1)
+		local rarity = PetConfig.Rarities[rarityId]
+		if not rarity or rarity.Order >= #PetConfig.RarityOrder then
+			return { ok = false, msg = "Can't fuse that rarity." }
+		end
+		local placed = getPlacedPetIds(data)
+		local candidates = {}
+		for id, pet in pairs(data.Pets) do
+			if pet.Rarity == rarityId and not placed[id] and not pet.Locked and data.CompanionId ~= id then
+				table.insert(candidates, pet)
+			end
+		end
+		if #candidates < 3 then
+			return { ok = false, msg = "Need 3 " .. rarityId .. " spirits in your inventory (not vaulted)." }
+		end
+		table.sort(candidates, function(a, b)
+			return Formulas.PetIncome(a.Rarity, a.Biome, a.Mutation) < Formulas.PetIncome(b.Rarity, b.Biome, b.Mutation)
+		end)
+		local bestBiome, bestMutation = candidates[1].Biome, "None"
+		for i = 1, 3 do
+			local pet = candidates[i]
+			if BiomeConfig.Get(pet.Biome).Order > BiomeConfig.Get(bestBiome).Order then
+				bestBiome = pet.Biome
+			end
+			if PetConfig.GetMutation(pet.Mutation).Mult > PetConfig.GetMutation(bestMutation).Mult then
+				bestMutation = pet.Mutation
+			end
+			data.Pets[pet.Id] = nil
+		end
+		local inherited = bestMutation ~= "None" and rng:NextNumber() < 0.5
+		local nextRarity = PetConfig.NextRarity(rarityId)
+		PetService:GiveOrb(player, { Rarity = nextRarity, Biome = bestBiome, Mutation = inherited and bestMutation or nil })
+		data.Stats.Fusions = (data.Stats.Fusions or 0) + 1
+		Services.PlayerDataService:MarkDirty(player)
+		local extra = inherited and (" It kept the " .. bestMutation .. " mutation!") or ""
+		return { ok = true, msg = string.format("Soul Fusion! A %s %s Soul is incubating.%s", nextRarity, BiomeConfig.Get(bestBiome).Name, extra) }
 	end
 	return { ok = false, msg = "Unknown action." }
 end
@@ -3940,7 +4397,7 @@ return PetService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="35">
           <Properties>
             <string name="Name">PlayerDataService</string>
             <string name="Source"><![CDATA[--[[
@@ -4007,9 +4464,10 @@ local DEFAULT_DATA = {
 	Daily = { Streak = 0, LastClaimDay = 0 },
 	Quests = { Day = 0, List = {}, BonusClaimed = false },
 	Index = {}, -- [species] = true for every spirit ever hatched
+	CompanionId = "", -- pet id of the spirit following you ("" = none)
 	Stats = {
 		TotalEssence = 0, Steals = 0, BaseSteals = 0, TimesRobbed = 0, Hatched = 0, PlayTime = 0, RobuxSpent = 0,
-		CandyEarned = 0, Bonks = 0, DaysPlayed = 0,
+		CandyEarned = 0, Bonks = 0, DaysPlayed = 0, Fusions = 0,
 	},
 }
 
@@ -4233,6 +4691,7 @@ function PlayerDataService:BuildSnapshot(player: Player)
 		Stats = data.Stats,
 		Candy = data.Candy,
 		Index = data.Index,
+		CompanionId = data.CompanionId,
 		Rewards = Services.RewardService:GetSnapshot(player),
 		EventActive = Services.EventService:IsActive(),
 		ShieldUntil = data.ShieldUntil,
@@ -4418,7 +4877,7 @@ return PlayerDataService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">RebirthService</string>
             <string name="Source"><![CDATA[--[[
@@ -4513,6 +4972,7 @@ function RebirthService:DoRebirth(player: Player, free: boolean): (boolean, stri
 
 	Services.PetService:RenderBase(player)
 	Services.EconomyService:Recalculate(player)
+	Services.CompanionService:Refresh(player) -- companion may not have survived the rebirth
 	Services.StealService:RefreshWalkSpeed(player)
 	Services.BaseService:TeleportHome(player)
 	Services.PlayerDataService:Replicate(player)
@@ -4574,7 +5034,7 @@ return RebirthService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">RewardService</string>
             <string name="Source"><![CDATA[--[[
@@ -4841,7 +5301,7 @@ return RewardService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">StealService</string>
             <string name="Source"><![CDATA[--[[
@@ -4858,6 +5318,7 @@ return RewardService
 ]]
 
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -4865,6 +5326,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local PetConfig = require(Shared.Config.PetConfig)
 local BiomeConfig = require(Shared.Config.BiomeConfig)
 local MonetizationConfig = require(Shared.Config.MonetizationConfig)
+local AbilityConfig = require(Shared.Config.AbilityConfig)
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Remotes = require(Shared.Remotes)
@@ -4884,6 +5346,8 @@ local carrying: { [Player]: Carried } = {}
 local slows: { [Player]: { { Factor: number, Until: number } } } = {}
 local highlights: { [Player]: Highlight } = {}
 local lastFullWarning: { [Player]: number } = {}
+local hiddenUntil: { [Player]: number } = {} -- guardians can't perceive (Grave Veil / Shadow Cloak)
+local wardUntil: { [Player]: number } = {} -- next knock-loose is blocked (Halo Ward)
 
 local function getRoot(player: Player): BasePart?
 	local character = player.Character
@@ -4919,6 +5383,9 @@ function StealService:RefreshWalkSpeed(player: Player)
 	if carried then
 		local phantom = Services.MonetizationService:HasPass(player, "PhantomSteps")
 		speed = Formulas.CarriedSpeed(speed, carried.Orb.Rarity, data.CarryLevel, phantom)
+	end
+	if player:GetAttribute("Sneaking") then
+		speed *= AbilityConfig.Stealth.SneakSpeedMult
 	end
 	local now = os.clock()
 	local list = slows[player]
@@ -4958,6 +5425,74 @@ function StealService:Knockback(player: Player, fromPosition: Vector3, power: nu
 	end
 	Services.AntiExploitService:Grace(player, 1.5)
 	Remotes.Event("Knockback"):FireClient(player, direction.Unit * power + Vector3.new(0, power * 0.5, 0))
+end
+
+-- Stealth & ability hooks ------------------------------------------------------------------------------
+function StealService:IsHiddenFromGuardians(player: Player): boolean
+	return (hiddenUntil[player] or 0) > os.clock()
+end
+
+function StealService:HideFromGuardians(player: Player, seconds: number)
+	hiddenUntil[player] = math.max(hiddenUntil[player] or 0, os.clock() + seconds)
+end
+
+function StealService:Ward(player: Player, seconds: number)
+	wardUntil[player] = os.clock() + seconds
+	player:SetAttribute("Warded", true)
+	task.delay(seconds, function()
+		if (wardUntil[player] or 0) <= os.clock() then
+			player:SetAttribute("Warded", nil)
+		end
+	end)
+end
+
+-- Guardians and bonks call this instead of Drop: Halo Ward can block it. Returns true if the soul dropped.
+function StealService:TryKnockLoose(player: Player, reason: string): boolean
+	if not carrying[player] then
+		return false
+	end
+	if (wardUntil[player] or 0) > os.clock() then
+		wardUntil[player] = 0
+		player:SetAttribute("Warded", nil)
+		Services.PlayerDataService:Notify(player, "Halo Ward blocked it!", "success")
+		return false
+	end
+	self:Drop(player, reason)
+	return true
+end
+
+-- Sends the player flying with a velocity (client applies it - it owns its character physics).
+function StealService:Launch(player: Player, velocity: Vector3)
+	Services.AntiExploitService:Grace(player, 2)
+	Remotes.Event("Knockback"):FireClient(player, velocity)
+end
+
+function StealService:SetSneak(player: Player, on: boolean)
+	player:SetAttribute("Sneaking", on or nil)
+	self:RefreshWalkSpeed(player)
+end
+
+-- Haunt: the robbed owner curses the thief (once per robbery, within a short window).
+function StealService:Haunt(owner: Player)
+	local thiefId = owner:GetAttribute("HauntThiefId")
+	local untilTime = owner:GetAttribute("HauntUntil") or 0
+	if not thiefId or Workspace:GetServerTimeNow() > untilTime then
+		return { ok = false, msg = "Nobody to haunt right now." }
+	end
+	owner:SetAttribute("HauntThiefId", nil)
+	owner:SetAttribute("HauntUntil", nil)
+	local thief = Players:GetPlayerByUserId(thiefId)
+	local carried = thief and carrying[thief]
+	if not thief or not carried or carried.StolenFromUserId ~= owner.UserId then
+		return { ok = false, msg = "The thief already got away..." }
+	end
+	local haunt = AbilityConfig.Haunt
+	self:ApplySlow(thief, haunt.SlowFactor, haunt.Duration)
+	if highlights[thief] then
+		highlights[thief].FillColor = Color3.fromRGB(140, 40, 255)
+	end
+	Services.PlayerDataService:Notify(thief, owner.DisplayName .. " is HAUNTING you! You're slowed!", "error")
+	return { ok = true, msg = "You haunted " .. thief.DisplayName .. "! Catch them!" }
 end
 
 -- Carry state -----------------------------------------------------------------------------------------
@@ -5101,7 +5636,10 @@ function StealService:TryStealFromBase(thief: Player, ownerUserId: number, index
 		ownerData.Stats.TimesRobbed += 1
 		pds:MarkDirty(owner)
 	end
-	pds:Notify(owner, string.format("%s is stealing your %s Soul! Bonk them to get it back!", thief.DisplayName, orb.Rarity), "error")
+	-- Give the owner a short window to Haunt the thief
+	owner:SetAttribute("HauntThiefId", thief.UserId)
+	owner:SetAttribute("HauntUntil", Workspace:GetServerTimeNow() + AbilityConfig.Haunt.WindowSeconds)
+	pds:Notify(owner, string.format("%s is stealing your %s Soul! HAUNT them (H) and bonk them!", thief.DisplayName, orb.Rarity), "error")
 	pds:Notify(thief, "You grabbed a " .. orb.Rarity .. " Soul! RUN HOME!", "success")
 	local rarity = PetConfig.GetRarity(orb.Rarity)
 	if rarity.Announce then
@@ -5196,7 +5734,21 @@ function StealService:Start()
 		self:Drop(player, nil) -- leaving with a soul drops it for everyone else
 		slows[player] = nil
 		lastFullWarning[player] = nil
+		hiddenUntil[player] = nil
+		wardUntil[player] = nil
 	end)
+
+	Remotes.Event("SetSneak").OnServerEvent:Connect(function(player, on)
+		if RateLimiter.Check(player, "Sneak", 0.2) then
+			self:SetSneak(player, on == true)
+		end
+	end)
+	Remotes.Function("Haunt").OnServerInvoke = function(player)
+		if not RateLimiter.Check(player, "Haunt", 0.5) then
+			return { ok = false }
+		end
+		return self:Haunt(player)
+	end
 
 	Remotes.Event("DropOrb").OnServerEvent:Connect(function(player)
 		if RateLimiter.Check(player, "DropOrb", 0.5) then
@@ -5223,7 +5775,7 @@ return StealService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">ToolService</string>
             <string name="Source"><![CDATA[--[[
@@ -5290,7 +5842,10 @@ local function onSwing(player: Player, isScythe: boolean)
 		return
 	end
 	if Services.StealService:IsCarrying(victim) then
-		Services.StealService:Drop(victim, player.DisplayName .. " knocked your soul loose!")
+		if not Services.StealService:TryKnockLoose(victim, player.DisplayName .. " knocked your soul loose!") then
+			Services.PlayerDataService:Notify(player, victim.DisplayName .. "'s Halo Ward blocked your hit!", "error")
+			return
+		end
 		Services.StealService:ApplySlow(victim, 0.3, stats.StunSeconds)
 		Services.StealService:Knockback(victim, root.Position, stats.Knockback)
 		Services.PlayerDataService:Notify(player, "You knocked " .. victim.DisplayName .. "'s soul loose! Grab it!", "success")
@@ -5359,7 +5914,7 @@ return ToolService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">UpgradeService</string>
             <string name="Source"><![CDATA[--[[
@@ -5575,11 +6130,11 @@ return UpgradeService
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="39">
+      <Item class="Folder" referent="41">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">RateLimiter</string>
             <string name="Source"><![CDATA[--[[
@@ -5617,7 +6172,7 @@ return RateLimiter
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Rewards</string>
             <string name="Source"><![CDATA[--[[
@@ -5673,11 +6228,11 @@ return Rewards
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="42">
+      <Item class="Folder" referent="44">
         <Properties>
           <string name="Name">World</string>
         </Properties>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">ModelFactory</string>
             <string name="Source"><![CDATA[--[[
@@ -6013,7 +6568,7 @@ return ModelFactory
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">WorldBuilder</string>
             <string name="Source"><![CDATA[--[[
@@ -6275,19 +6830,19 @@ return WorldBuilder
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="45">
+  <Item class="StarterPlayer" referent="47">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="46">
+    <Item class="StarterPlayerScripts" referent="48">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="47">
+      <Item class="Folder" referent="49">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="48">
+        <Item class="LocalScript" referent="50">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -6320,6 +6875,8 @@ local BiomeConfig = require(Shared.Config:WaitForChild("BiomeConfig"))
 local MonetizationConfig = require(Shared.Config:WaitForChild("MonetizationConfig"))
 local RewardConfig = require(Shared.Config:WaitForChild("RewardConfig"))
 local EventConfig = require(Shared.Config:WaitForChild("EventConfig"))
+local AbilityConfig = require(Shared.Config:WaitForChild("AbilityConfig"))
+local UserInputService = game:GetService("UserInputService")
 
 local THEME = {
 	Bg = Color3.fromRGB(22, 16, 38),
@@ -6773,11 +7330,33 @@ end
 
 local orbCountdownLabels: { { Label: TextLabel, HatchEnd: number, Prefix: string } } = {}
 
+-- "Follow" button: makes this spirit your Companion (its biome gives your ability)
+local function followButton(petId: string)
+	local isCompanion = snapshot and snapshot.CompanionId == petId
+	return {
+		Text = isCompanion and "Following" or "Follow",
+		Color = isCompanion and THEME.Gold or Color3.fromRGB(90, 160, 255),
+		OnClick = function()
+			request("SetCompanion", if isCompanion then nil else petId)
+		end,
+	}
+end
+
 local function refreshSpirits()
 	clearList(spiritsList)
 	table.clear(orbCountdownLabels)
 	if not snapshot then
 		return
+	end
+	-- Companion summary at the top
+	local companion = snapshot.CompanionId ~= "" and snapshot.Pets[snapshot.CompanionId]
+	if companion then
+		local ability = AbilityConfig.ByBiome[companion.Biome] or AbilityConfig.ByBiome.Meadow
+		makeRow(spiritsList, -1, "Companion: " .. petTitle(companion), string.format("Ability (Q): %s - %s", ability.Name, ability.Desc), {
+			{ Text = "Dismiss", Color = THEME.Bad, OnClick = function() request("SetCompanion", nil) end },
+		})
+	else
+		makeRow(spiritsList, -1, "No Companion yet", "Press Follow on a spirit: it follows you and gives a power (Q)", nil)
 	end
 	local order = 0
 	local function nextOrder()
@@ -6816,6 +7395,7 @@ local function refreshSpirits()
 				local index = i
 				local _, title = makeRow(spiritsList, nextOrder(), "#" .. i .. " " .. petTitle(pet), string.format("%s | +%s/s", pet.Rarity, Format.Number(petIncome(pet))), {
 					{ Text = "Store", Color = THEME.Accent, OnClick = function() request("PetAction", "Store", index) end },
+					followButton(slot.PetId),
 				})
 				title.TextColor3 = PetConfig.GetRarity(pet.Rarity).Color
 			end
@@ -6842,15 +7422,37 @@ local function refreshSpirits()
 		local id = pet.Id
 		local _, title = makeRow(spiritsList, nextOrder(), petTitle(pet) .. (pet.Locked and " [VAULT]" or ""), string.format("%s | +%s/s", pet.Rarity, Format.Number(petIncome(pet))), {
 			{ Text = "Place", Color = THEME.Good, OnClick = function() request("PetAction", "Place", id) end },
-			{ Text = pet.Locked and "Unvault" or "Vault", Color = THEME.Accent, OnClick = function() request("PetAction", "Lock", id, not pet.Locked) end },
+			followButton(id),
 			{ Text = "Sell", Color = THEME.Bad, OnClick = function() request("PetAction", "Sell", id) end },
 		})
 		title.TextColor3 = PetConfig.GetRarity(pet.Rarity).Color
 	end
-	-- Pets on pedestals can also be vaulted
-	sectionHeader(spiritsList, nextOrder(), "Vault spirits on pedestals (kept through rebirth)")
-	for id in pairs(placed) do
-		local pet = snapshot.Pets[id]
+	-- Soul Fusion: 3 same-rarity inventory spirits -> 1 soul of the next rarity
+	sectionHeader(spiritsList, nextOrder(), "Soul Fusion: 3 spirits -> 1 of the next rarity")
+	local fusable: { [string]: number } = {}
+	for _, pet in ipairs(inventory) do
+		if not pet.Locked and pet.Id ~= snapshot.CompanionId then
+			fusable[pet.Rarity] = (fusable[pet.Rarity] or 0) + 1
+		end
+	end
+	for i = 1, #PetConfig.RarityOrder - 1 do
+		local rarityId = PetConfig.RarityOrder[i]
+		local count = fusable[rarityId] or 0
+		local nextRarity = PetConfig.RarityOrder[i + 1]
+		local _, title = makeRow(spiritsList, nextOrder(), string.format("3 %s -> 1 %s", rarityId, nextRarity), string.format("You have %d in inventory (store spirits to fuse them)", count), {
+			{ Text = "FUSE", Color = count >= 3 and THEME.Gold or THEME.Row, OnClick = function()
+				local result = request("PetAction", "FuseRarity", rarityId)
+				if result and result.ok then
+					playSound("Ping", 0.7)
+				end
+			end },
+		})
+		title.TextColor3 = PetConfig.GetRarity(nextRarity).Color
+	end
+
+	-- Vault (kept through rebirth) for every spirit
+	sectionHeader(spiritsList, nextOrder(), "Vault: spirits kept through rebirth")
+	for id, pet in pairs(snapshot.Pets) do
 		makeRow(spiritsList, nextOrder(), petTitle(pet), pet.Locked and "In vault" or "Not vaulted", {
 			{ Text = pet.Locked and "Unvault" or "Vault", Color = THEME.Accent, OnClick = function() request("PetAction", "Lock", id, not pet.Locked) end },
 		})
@@ -7407,6 +8009,130 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- Heist controls: Ability (Q), Sneak (C), Haunt (H) ---------------------------------------------------------------------------------------
+local actionBar = new("Frame", {
+	Name = "ActionBar", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -12, 1, -110), Size = UDim2.fromOffset(190, 200),
+	BackgroundTransparency = 1, Parent = gui,
+}, { new("UIListLayout", { Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder }) })
+
+local function useAbility()
+	local result = request("UseAbility")
+	if result and result.ok then
+		playSound("Hit", 1.4)
+	end
+end
+
+local sneaking = false
+local sneakButton: TextButton
+local function setSneak(on: boolean)
+	sneaking = on
+	Remotes.Event("SetSneak"):FireServer(on)
+	sneakButton.Text = on and "SNEAKING (C)" or "Sneak (C)"
+	sneakButton.BackgroundColor3 = on and Color3.fromRGB(40, 40, 70) or Color3.fromRGB(80, 80, 130)
+end
+
+local function haunt()
+	local result = request("Haunt")
+	if result and result.ok then
+		playSound("Hit", 0.6)
+	end
+end
+
+local hauntButton = button("HAUNT THIEF (H)", Color3.fromRGB(150, 50, 230), haunt)
+hauntButton.Size = UDim2.new(1, 0, 0, 52)
+hauntButton.LayoutOrder = 1
+hauntButton.Visible = false
+hauntButton.Parent = actionBar
+
+local abilityButton = button("Ability (Q)", THEME.Accent, useAbility)
+abilityButton.Size = UDim2.new(1, 0, 0, 56)
+abilityButton.LayoutOrder = 2
+abilityButton.Visible = false
+abilityButton.Parent = actionBar
+
+sneakButton = button("Sneak (C)", Color3.fromRGB(80, 80, 130), function()
+	setSneak(not sneaking)
+end)
+sneakButton.Size = UDim2.new(1, 0, 0, 46)
+sneakButton.LayoutOrder = 3
+sneakButton.Parent = actionBar
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.Q then
+		task.spawn(useAbility)
+	elseif input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.LeftControl then
+		setSneak(not sneaking)
+	elseif input.KeyCode == Enum.KeyCode.H then
+		task.spawn(haunt)
+	end
+end)
+
+-- Companion spirits: every client draws every player's companion floating beside them.
+local companionModels: { [Player]: { Part: BasePart, Key: string } } = {}
+
+local function buildCompanionPart(rarityId: string, mutationId: string?): BasePart
+	local rarity = PetConfig.GetRarity(rarityId)
+	local mutation = mutationId and mutationId ~= "None" and PetConfig.Mutations[mutationId]
+	local part = new("Part", {
+		Name = "Companion", Shape = Enum.PartType.Ball, Size = Vector3.one * (1 + rarity.Order * 0.12),
+		Color = mutation and mutation.Color or rarity.Color, Material = Enum.Material.Neon,
+		Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Parent = Workspace,
+	})
+	new("PointLight", { Color = part.Color, Range = 8, Brightness = 1.5, Parent = part })
+	new("ParticleEmitter", {
+		Color = ColorSequence.new(part.Color), LightEmission = 1, Rate = 6, Lifetime = NumberRange.new(0.5, 0.9),
+		Speed = NumberRange.new(0.5, 1.5), Size = NumberSequence.new(0.25, 0), Parent = part,
+	})
+	return part
+end
+
+RunService.RenderStepped:Connect(function(dt)
+	local t = os.clock()
+	for _, other in ipairs(Players:GetPlayers()) do
+		local species = other:GetAttribute("CompanionSpecies")
+		local root = other.Character and other.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local entry = companionModels[other]
+		local key = species and (tostring(species) .. tostring(other:GetAttribute("CompanionMutation"))) or nil
+		if entry and (entry.Key ~= key or not root) then
+			entry.Part:Destroy()
+			companionModels[other] = nil
+			entry = nil
+		end
+		if key and root then
+			if not entry then
+				entry = { Part = buildCompanionPart(other:GetAttribute("CompanionRarity") or "Common", other:GetAttribute("CompanionMutation")), Key = key }
+				companionModels[other] = entry
+			end
+			local goal = root.CFrame * CFrame.new(2.4, 2 + math.sin(t * 3) * 0.35, 1.2)
+			entry.Part.CFrame = entry.Part.CFrame:Lerp(goal, math.clamp(dt * 8, 0, 1))
+		end
+	end
+	for other, entry in pairs(companionModels) do
+		if not other.Parent then
+			entry.Part:Destroy()
+			companionModels[other] = nil
+		end
+	end
+
+	-- Action bar state
+	local abilityName = player:GetAttribute("AbilityName")
+	abilityButton.Visible = abilityName ~= nil
+	if abilityName then
+		local remaining = (player:GetAttribute("AbilityReadyAt") or 0) - Workspace:GetServerTimeNow()
+		if remaining > 0 then
+			abilityButton.Text = string.format("%s %ds", abilityName, math.ceil(remaining))
+			abilityButton.BackgroundTransparency = 0.5
+		else
+			abilityButton.Text = abilityName .. " (Q)"
+			abilityButton.BackgroundTransparency = 0
+		end
+	end
+	hauntButton.Visible = (player:GetAttribute("HauntUntil") or 0) > Workspace:GetServerTimeNow()
+end)
+
 -- Guide beam ----------------------------------------------------------------------------------------------------------------------------------
 -- Points home while you carry a soul, and to the nearest soul you can reach during your first 15 steals.
 local guidePart = new("Part", {
@@ -7495,7 +8221,7 @@ task.spawn(function()
 	refreshTopBar()
 	refreshCarry()
 	refreshPhase()
-	toast("Steal glowing souls, run them home, hatch spirits, get rich!", "info")
+	toast("Sneak (C) past guardians' vision, steal souls, hide behind rocks. Pick a Companion spirit for powers (Q)!", "info")
 	if EVENT_ACTIVE then
 		announce("The " .. EventConfig.Name .. " is here! Collect pumpkins for Candy!", Color3.fromRGB(255, 140, 40))
 	end

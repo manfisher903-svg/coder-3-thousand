@@ -62,7 +62,10 @@ local function onSwing(player: Player, isScythe: boolean)
 		return
 	end
 	if Services.StealService:IsCarrying(victim) then
-		Services.StealService:Drop(victim, player.DisplayName .. " knocked your soul loose!")
+		if not Services.StealService:TryKnockLoose(victim, player.DisplayName .. " knocked your soul loose!") then
+			Services.PlayerDataService:Notify(player, victim.DisplayName .. "'s Halo Ward blocked your hit!", "error")
+			return
+		end
 		Services.StealService:ApplySlow(victim, 0.3, stats.StunSeconds)
 		Services.StealService:Knockback(victim, root.Position, stats.Knockback)
 		Services.PlayerDataService:Notify(player, "You knocked " .. victim.DisplayName .. "'s soul loose! Grab it!", "success")

@@ -36,7 +36,8 @@ ReplicatedStorage
     │   ├── BiomeConfig            (ModuleScript)
     │   ├── MonetizationConfig     (ModuleScript)
     │   ├── EventConfig            (ModuleScript)
-    │   └── RewardConfig           (ModuleScript)
+    │   ├── RewardConfig           (ModuleScript)
+    │   └── AbilityConfig          (ModuleScript)
     └── Util                       (Folder)
         ├── Format                 (ModuleScript)
         └── Signal                 (ModuleScript)
@@ -69,7 +70,8 @@ ServerScriptService
         ├── ToolService            (ModuleScript)
         ├── EventService           (ModuleScript)
         ├── RewardService          (ModuleScript)
-        └── LeaderboardService     (ModuleScript)
+        ├── LeaderboardService     (ModuleScript)
+        └── CompanionService       (ModuleScript)
 
 StarterPlayer
 └── StarterPlayerScripts
@@ -86,7 +88,7 @@ StarterPlayer
 ## Phase 2: First play test (5 min)
 
 1. Press **Play**. Output should show:
-   `[WorldBuilder] Generated greybox world…` and `[SoulHeist] Server ready - 17 services running`.
+   `[WorldBuilder] Generated greybox world…` and `[SoulHeist] Server ready - 18 services running`.
 2. You spawn in your base (row of 8 plots). Run **forward (+Z)** to the green **Whispering Meadow**.
 3. Hold **E** on a glowing orb, run back, and walk into your plot. The orb lands on a pedestal and hatches in about 10s.
 4. Open **Upgrades** and buy Speed to 22, then try **Ember Hollow**. Under-speed players get pushed back at the gate.

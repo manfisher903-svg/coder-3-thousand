@@ -90,6 +90,7 @@ function RebirthService:DoRebirth(player: Player, free: boolean): (boolean, stri
 
 	Services.PetService:RenderBase(player)
 	Services.EconomyService:Recalculate(player)
+	Services.CompanionService:Refresh(player) -- companion may not have survived the rebirth
 	Services.StealService:RefreshWalkSpeed(player)
 	Services.BaseService:TeleportHome(player)
 	Services.PlayerDataService:Replicate(player)

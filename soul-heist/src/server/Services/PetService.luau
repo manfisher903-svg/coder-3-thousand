@@ -404,6 +404,9 @@ local function petAction(player: Player, action: any, arg1: any, arg2: any)
 		if pet.Locked then
 			return { ok = false, msg = "Unlock the spirit first." }
 		end
+		if data.CompanionId == petId then
+			return { ok = false, msg = "That's your Companion! Pick another one first." }
+		end
 		local value = math.floor(Formulas.PetIncome(pet.Rarity, pet.Biome, pet.Mutation) * PetConfig.SellSeconds)
 		data.Pets[petId] = nil
 		Services.EconomyService:AddEssence(player, value)
@@ -432,6 +435,47 @@ local function petAction(player: Player, action: any, arg1: any, arg2: any)
 		pet.Locked = wantLocked
 		Services.PlayerDataService:MarkDirty(player)
 		return { ok = true }
+	end
+	if action == "FuseRarity" then
+		-- Soul Fusion: 3 inventory spirits of the same rarity -> 1 soul of the NEXT rarity.
+		-- Uses the 3 lowest-income unlocked, non-companion spirits. Result comes from the best biome
+		-- among the three, and has a 50% chance to inherit the best mutation among them.
+		local rarityId = tostring(arg1)
+		local rarity = PetConfig.Rarities[rarityId]
+		if not rarity or rarity.Order >= #PetConfig.RarityOrder then
+			return { ok = false, msg = "Can't fuse that rarity." }
+		end
+		local placed = getPlacedPetIds(data)
+		local candidates = {}
+		for id, pet in pairs(data.Pets) do
+			if pet.Rarity == rarityId and not placed[id] and not pet.Locked and data.CompanionId ~= id then
+				table.insert(candidates, pet)
+			end
+		end
+		if #candidates < 3 then
+			return { ok = false, msg = "Need 3 " .. rarityId .. " spirits in your inventory (not vaulted)." }
+		end
+		table.sort(candidates, function(a, b)
+			return Formulas.PetIncome(a.Rarity, a.Biome, a.Mutation) < Formulas.PetIncome(b.Rarity, b.Biome, b.Mutation)
+		end)
+		local bestBiome, bestMutation = candidates[1].Biome, "None"
+		for i = 1, 3 do
+			local pet = candidates[i]
+			if BiomeConfig.Get(pet.Biome).Order > BiomeConfig.Get(bestBiome).Order then
+				bestBiome = pet.Biome
+			end
+			if PetConfig.GetMutation(pet.Mutation).Mult > PetConfig.GetMutation(bestMutation).Mult then
+				bestMutation = pet.Mutation
+			end
+			data.Pets[pet.Id] = nil
+		end
+		local inherited = bestMutation ~= "None" and rng:NextNumber() < 0.5
+		local nextRarity = PetConfig.NextRarity(rarityId)
+		PetService:GiveOrb(player, { Rarity = nextRarity, Biome = bestBiome, Mutation = inherited and bestMutation or nil })
+		data.Stats.Fusions = (data.Stats.Fusions or 0) + 1
+		Services.PlayerDataService:MarkDirty(player)
+		local extra = inherited and (" It kept the " .. bestMutation .. " mutation!") or ""
+		return { ok = true, msg = string.format("Soul Fusion! A %s %s Soul is incubating.%s", nextRarity, BiomeConfig.Get(bestBiome).Name, extra) }
 	end
 	return { ok = false, msg = "Unknown action." }
 end

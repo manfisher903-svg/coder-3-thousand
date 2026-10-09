@@ -28,6 +28,8 @@ local BiomeConfig = require(Shared.Config:WaitForChild("BiomeConfig"))
 local MonetizationConfig = require(Shared.Config:WaitForChild("MonetizationConfig"))
 local RewardConfig = require(Shared.Config:WaitForChild("RewardConfig"))
 local EventConfig = require(Shared.Config:WaitForChild("EventConfig"))
+local AbilityConfig = require(Shared.Config:WaitForChild("AbilityConfig"))
+local UserInputService = game:GetService("UserInputService")
 
 local THEME = {
 	Bg = Color3.fromRGB(22, 16, 38),
@@ -481,11 +483,33 @@ end
 
 local orbCountdownLabels: { { Label: TextLabel, HatchEnd: number, Prefix: string } } = {}
 
+-- "Follow" button: makes this spirit your Companion (its biome gives your ability)
+local function followButton(petId: string)
+	local isCompanion = snapshot and snapshot.CompanionId == petId
+	return {
+		Text = isCompanion and "Following" or "Follow",
+		Color = isCompanion and THEME.Gold or Color3.fromRGB(90, 160, 255),
+		OnClick = function()
+			request("SetCompanion", if isCompanion then nil else petId)
+		end,
+	}
+end
+
 local function refreshSpirits()
 	clearList(spiritsList)
 	table.clear(orbCountdownLabels)
 	if not snapshot then
 		return
+	end
+	-- Companion summary at the top
+	local companion = snapshot.CompanionId ~= "" and snapshot.Pets[snapshot.CompanionId]
+	if companion then
+		local ability = AbilityConfig.ByBiome[companion.Biome] or AbilityConfig.ByBiome.Meadow
+		makeRow(spiritsList, -1, "Companion: " .. petTitle(companion), string.format("Ability (Q): %s - %s", ability.Name, ability.Desc), {
+			{ Text = "Dismiss", Color = THEME.Bad, OnClick = function() request("SetCompanion", nil) end },
+		})
+	else
+		makeRow(spiritsList, -1, "No Companion yet", "Press Follow on a spirit: it follows you and gives a power (Q)", nil)
 	end
 	local order = 0
 	local function nextOrder()
@@ -524,6 +548,7 @@ local function refreshSpirits()
 				local index = i
 				local _, title = makeRow(spiritsList, nextOrder(), "#" .. i .. " " .. petTitle(pet), string.format("%s | +%s/s", pet.Rarity, Format.Number(petIncome(pet))), {
 					{ Text = "Store", Color = THEME.Accent, OnClick = function() request("PetAction", "Store", index) end },
+					followButton(slot.PetId),
 				})
 				title.TextColor3 = PetConfig.GetRarity(pet.Rarity).Color
 			end
@@ -550,15 +575,37 @@ local function refreshSpirits()
 		local id = pet.Id
 		local _, title = makeRow(spiritsList, nextOrder(), petTitle(pet) .. (pet.Locked and " [VAULT]" or ""), string.format("%s | +%s/s", pet.Rarity, Format.Number(petIncome(pet))), {
 			{ Text = "Place", Color = THEME.Good, OnClick = function() request("PetAction", "Place", id) end },
-			{ Text = pet.Locked and "Unvault" or "Vault", Color = THEME.Accent, OnClick = function() request("PetAction", "Lock", id, not pet.Locked) end },
+			followButton(id),
 			{ Text = "Sell", Color = THEME.Bad, OnClick = function() request("PetAction", "Sell", id) end },
 		})
 		title.TextColor3 = PetConfig.GetRarity(pet.Rarity).Color
 	end
-	-- Pets on pedestals can also be vaulted
-	sectionHeader(spiritsList, nextOrder(), "Vault spirits on pedestals (kept through rebirth)")
-	for id in pairs(placed) do
-		local pet = snapshot.Pets[id]
+	-- Soul Fusion: 3 same-rarity inventory spirits -> 1 soul of the next rarity
+	sectionHeader(spiritsList, nextOrder(), "Soul Fusion: 3 spirits -> 1 of the next rarity")
+	local fusable: { [string]: number } = {}
+	for _, pet in ipairs(inventory) do
+		if not pet.Locked and pet.Id ~= snapshot.CompanionId then
+			fusable[pet.Rarity] = (fusable[pet.Rarity] or 0) + 1
+		end
+	end
+	for i = 1, #PetConfig.RarityOrder - 1 do
+		local rarityId = PetConfig.RarityOrder[i]
+		local count = fusable[rarityId] or 0
+		local nextRarity = PetConfig.RarityOrder[i + 1]
+		local _, title = makeRow(spiritsList, nextOrder(), string.format("3 %s -> 1 %s", rarityId, nextRarity), string.format("You have %d in inventory (store spirits to fuse them)", count), {
+			{ Text = "FUSE", Color = count >= 3 and THEME.Gold or THEME.Row, OnClick = function()
+				local result = request("PetAction", "FuseRarity", rarityId)
+				if result and result.ok then
+					playSound("Ping", 0.7)
+				end
+			end },
+		})
+		title.TextColor3 = PetConfig.GetRarity(nextRarity).Color
+	end
+
+	-- Vault (kept through rebirth) for every spirit
+	sectionHeader(spiritsList, nextOrder(), "Vault: spirits kept through rebirth")
+	for id, pet in pairs(snapshot.Pets) do
 		makeRow(spiritsList, nextOrder(), petTitle(pet), pet.Locked and "In vault" or "Not vaulted", {
 			{ Text = pet.Locked and "Unvault" or "Vault", Color = THEME.Accent, OnClick = function() request("PetAction", "Lock", id, not pet.Locked) end },
 		})
@@ -1115,6 +1162,130 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- Heist controls: Ability (Q), Sneak (C), Haunt (H) ---------------------------------------------------------------------------------------
+local actionBar = new("Frame", {
+	Name = "ActionBar", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -12, 1, -110), Size = UDim2.fromOffset(190, 200),
+	BackgroundTransparency = 1, Parent = gui,
+}, { new("UIListLayout", { Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Bottom, SortOrder = Enum.SortOrder.LayoutOrder }) })
+
+local function useAbility()
+	local result = request("UseAbility")
+	if result and result.ok then
+		playSound("Hit", 1.4)
+	end
+end
+
+local sneaking = false
+local sneakButton: TextButton
+local function setSneak(on: boolean)
+	sneaking = on
+	Remotes.Event("SetSneak"):FireServer(on)
+	sneakButton.Text = on and "SNEAKING (C)" or "Sneak (C)"
+	sneakButton.BackgroundColor3 = on and Color3.fromRGB(40, 40, 70) or Color3.fromRGB(80, 80, 130)
+end
+
+local function haunt()
+	local result = request("Haunt")
+	if result and result.ok then
+		playSound("Hit", 0.6)
+	end
+end
+
+local hauntButton = button("HAUNT THIEF (H)", Color3.fromRGB(150, 50, 230), haunt)
+hauntButton.Size = UDim2.new(1, 0, 0, 52)
+hauntButton.LayoutOrder = 1
+hauntButton.Visible = false
+hauntButton.Parent = actionBar
+
+local abilityButton = button("Ability (Q)", THEME.Accent, useAbility)
+abilityButton.Size = UDim2.new(1, 0, 0, 56)
+abilityButton.LayoutOrder = 2
+abilityButton.Visible = false
+abilityButton.Parent = actionBar
+
+sneakButton = button("Sneak (C)", Color3.fromRGB(80, 80, 130), function()
+	setSneak(not sneaking)
+end)
+sneakButton.Size = UDim2.new(1, 0, 0, 46)
+sneakButton.LayoutOrder = 3
+sneakButton.Parent = actionBar
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.Q then
+		task.spawn(useAbility)
+	elseif input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.LeftControl then
+		setSneak(not sneaking)
+	elseif input.KeyCode == Enum.KeyCode.H then
+		task.spawn(haunt)
+	end
+end)
+
+-- Companion spirits: every client draws every player's companion floating beside them.
+local companionModels: { [Player]: { Part: BasePart, Key: string } } = {}
+
+local function buildCompanionPart(rarityId: string, mutationId: string?): BasePart
+	local rarity = PetConfig.GetRarity(rarityId)
+	local mutation = mutationId and mutationId ~= "None" and PetConfig.Mutations[mutationId]
+	local part = new("Part", {
+		Name = "Companion", Shape = Enum.PartType.Ball, Size = Vector3.one * (1 + rarity.Order * 0.12),
+		Color = mutation and mutation.Color or rarity.Color, Material = Enum.Material.Neon,
+		Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false, Parent = Workspace,
+	})
+	new("PointLight", { Color = part.Color, Range = 8, Brightness = 1.5, Parent = part })
+	new("ParticleEmitter", {
+		Color = ColorSequence.new(part.Color), LightEmission = 1, Rate = 6, Lifetime = NumberRange.new(0.5, 0.9),
+		Speed = NumberRange.new(0.5, 1.5), Size = NumberSequence.new(0.25, 0), Parent = part,
+	})
+	return part
+end
+
+RunService.RenderStepped:Connect(function(dt)
+	local t = os.clock()
+	for _, other in ipairs(Players:GetPlayers()) do
+		local species = other:GetAttribute("CompanionSpecies")
+		local root = other.Character and other.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local entry = companionModels[other]
+		local key = species and (tostring(species) .. tostring(other:GetAttribute("CompanionMutation"))) or nil
+		if entry and (entry.Key ~= key or not root) then
+			entry.Part:Destroy()
+			companionModels[other] = nil
+			entry = nil
+		end
+		if key and root then
+			if not entry then
+				entry = { Part = buildCompanionPart(other:GetAttribute("CompanionRarity") or "Common", other:GetAttribute("CompanionMutation")), Key = key }
+				companionModels[other] = entry
+			end
+			local goal = root.CFrame * CFrame.new(2.4, 2 + math.sin(t * 3) * 0.35, 1.2)
+			entry.Part.CFrame = entry.Part.CFrame:Lerp(goal, math.clamp(dt * 8, 0, 1))
+		end
+	end
+	for other, entry in pairs(companionModels) do
+		if not other.Parent then
+			entry.Part:Destroy()
+			companionModels[other] = nil
+		end
+	end
+
+	-- Action bar state
+	local abilityName = player:GetAttribute("AbilityName")
+	abilityButton.Visible = abilityName ~= nil
+	if abilityName then
+		local remaining = (player:GetAttribute("AbilityReadyAt") or 0) - Workspace:GetServerTimeNow()
+		if remaining > 0 then
+			abilityButton.Text = string.format("%s %ds", abilityName, math.ceil(remaining))
+			abilityButton.BackgroundTransparency = 0.5
+		else
+			abilityButton.Text = abilityName .. " (Q)"
+			abilityButton.BackgroundTransparency = 0
+		end
+	end
+	hauntButton.Visible = (player:GetAttribute("HauntUntil") or 0) > Workspace:GetServerTimeNow()
+end)
+
 -- Guide beam ----------------------------------------------------------------------------------------------------------------------------------
 -- Points home while you carry a soul, and to the nearest soul you can reach during your first 15 steals.
 local guidePart = new("Part", {
@@ -1203,7 +1374,7 @@ task.spawn(function()
 	refreshTopBar()
 	refreshCarry()
 	refreshPhase()
-	toast("Steal glowing souls, run them home, hatch spirits, get rich!", "info")
+	toast("Sneak (C) past guardians' vision, steal souls, hide behind rocks. Pick a Companion spirit for powers (Q)!", "info")
 	if EVENT_ACTIVE then
 		announce("The " .. EventConfig.Name .. " is here! Collect pumpkins for Candy!", Color3.fromRGB(255, 140, 40))
 	end

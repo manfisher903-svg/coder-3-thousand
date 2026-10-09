@@ -62,9 +62,10 @@ local DEFAULT_DATA = {
 	Daily = { Streak = 0, LastClaimDay = 0 },
 	Quests = { Day = 0, List = {}, BonusClaimed = false },
 	Index = {}, -- [species] = true for every spirit ever hatched
+	CompanionId = "", -- pet id of the spirit following you ("" = none)
 	Stats = {
 		TotalEssence = 0, Steals = 0, BaseSteals = 0, TimesRobbed = 0, Hatched = 0, PlayTime = 0, RobuxSpent = 0,
-		CandyEarned = 0, Bonks = 0, DaysPlayed = 0,
+		CandyEarned = 0, Bonks = 0, DaysPlayed = 0, Fusions = 0,
 	},
 }
 
@@ -288,6 +289,7 @@ function PlayerDataService:BuildSnapshot(player: Player)
 		Stats = data.Stats,
 		Candy = data.Candy,
 		Index = data.Index,
+		CompanionId = data.CompanionId,
 		Rewards = Services.RewardService:GetSnapshot(player),
 		EventActive = Services.EventService:IsActive(),
 		ShieldUntil = data.ShieldUntil,
