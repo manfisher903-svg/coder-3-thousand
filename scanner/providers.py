@@ -90,6 +90,7 @@ PROVIDERS = [
     ("Mail.ru", "imap.mail.ru"),
     ("NetZero (POP3)", "pop.netzero.net"),
     ("Juno (POP3)", "pop.juno.com"),
+    ("Other / webmail — type my mail server below", "__custom__"),
 ]
 
 

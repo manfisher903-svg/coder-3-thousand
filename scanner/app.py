@@ -496,9 +496,12 @@ def index():
          style="min-width:240px"></p>
       <p><label class="muted">Email provider</label><br>
          <select name="provider" style="min-width:260px">{prov_opts}</select></p>
+      <p><input name="custom_host" placeholder="or type your mail server (any webmail / IMAP host)"
+         style="min-width:260px"></p>
       <p class="muted" style="font-size:.8rem">Leave on <b>Auto-detect</b> unless
-         a scan says it couldn't find your mail server — then pick your provider
-         here and re-scan.</p>
+         a scan says it couldn't find your mail server. For any webmail not in the
+         list, choose <b>Other / webmail</b> and type its mail server (e.g.
+         <code>imap.yourprovider.com</code>) in the box above.</p>
       <p><button>Add account</button>
       <span class="muted">Saved to {escape(_acct_path())} on this computer.</span></p>
     </form></div>
@@ -839,7 +842,16 @@ def add_account():
         return r
     email = (request.form.get("email") or "").strip()
     password = (request.form.get("password") or "").strip()
-    host = (request.form.get("provider") or "").strip() or None
+    provider = (request.form.get("provider") or "").strip()
+    custom = (request.form.get("custom_host") or "").strip()
+    # A typed mail server wins; otherwise the dropdown; "__custom__" with no
+    # typed host, or Auto-detect, means auto (host=None).
+    if custom:
+        host = custom
+    elif provider and provider != "__custom__":
+        host = provider
+    else:
+        host = None
     if email and password:
         add_or_update(_acct_path(), email, password, host=host)
     return redirect(url_for("index"))
