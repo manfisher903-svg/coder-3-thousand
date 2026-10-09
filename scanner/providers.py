@@ -58,6 +58,8 @@ _reg(["comcast.net"], "imap.comcast.net")
 _reg(["att.net", "sbcglobal.net", "bellsouth.net"], "imap.mail.att.net")
 _reg(["verizon.net"], "imap.aol.com")  # Verizon mail is served by AOL
 _reg(["cox.net"], "imap.cox.net")
+_reg(["btinternet.com", "btopenworld.com", "talk21.com", "btconnect.com", "bt.com"],
+     "mail.btinternet.com")
 # NetZero & Juno (United Online) are POP3-only — they have no IMAP server.
 _KNOWN["netzero.net"] = ImapServer("pop.netzero.net", 995, "ssl",
                                    source="built-in", protocol="pop3")
@@ -82,6 +84,7 @@ PROVIDERS = [
     ("AT&T / SBCGlobal / BellSouth", "imap.mail.att.net"),
     ("Verizon", "imap.aol.com"),
     ("Cox", "imap.cox.net"),
+    ("BT Internet (UK)", "mail.btinternet.com"),
     ("GMX", "imap.gmx.com"),
     ("Zoho", "imap.zoho.com"),
     ("Fastmail", "imap.fastmail.com"),
