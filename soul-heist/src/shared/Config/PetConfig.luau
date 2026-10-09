@@ -26,6 +26,7 @@ export type Mutation = {
 	Color: Color3,
 	NightOnly: boolean?,
 	EclipseOnly: boolean?,
+	EventOnly: boolean?,
 }
 
 local PetConfig = {}
@@ -71,7 +72,7 @@ PetConfig.Rarities = {
 } :: { [string]: Rarity }
 
 -- Mutations are rolled at HATCH time with the hatcher's luck (rarest first, first success wins).
-PetConfig.MutationOrder = { "Rainbow", "Eclipsed", "Voidtouched", "Celestial", "Moonlit", "Spectral", "Gilded" }
+PetConfig.MutationOrder = { "Rainbow", "Eclipsed", "Voidtouched", "Haunted", "Celestial", "Moonlit", "Spectral", "Gilded" }
 
 PetConfig.Mutations = {
 	None = { Id = "None", Mult = 1, Chance = 0, Color = Color3.new(1, 1, 1) },
@@ -82,6 +83,8 @@ PetConfig.Mutations = {
 	Voidtouched = { Id = "Voidtouched", Mult = 15, Chance = 0.0005, Color = Color3.fromRGB(90, 0, 140) },
 	Eclipsed = { Id = "Eclipsed", Mult = 40, Chance = 0.003, Color = Color3.fromRGB(255, 60, 0), EclipseOnly = true },
 	Rainbow = { Id = "Rainbow", Mult = 25, Chance = 0.0001, Color = Color3.fromRGB(255, 0, 255) },
+	-- Seasonal: only rolls while a seasonal event is active (EventConfig), also sold in the Candy Shop.
+	Haunted = { Id = "Haunted", Mult = 10, Chance = 0.01, Color = Color3.fromRGB(255, 130, 20), EventOnly = true },
 } :: { [string]: Mutation }
 
 -- "Ascension": on hatch, chance for the soul to jump one rarity tier. Scales with luck.

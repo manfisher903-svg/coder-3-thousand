@@ -2,12 +2,13 @@
 	EconomyService
 	Passive income, multipliers, luck, timed boosts, offline earnings.
 
-	Income/sec = Σ(placed pet income) × RebirthMult × AttunementMult × SocialMult × PassMult × BoostMult
+	Income/sec = Σ(placed pet income) × RebirthMult × AttunementMult × SocialMult × PassMult × BoostMult × IndexMult
 		RebirthMult    = 1 + 0.5 × rebirths
 		AttunementMult = 1 + 0.10 × Attunement perk level
 		SocialMult     = 1 + Premium(0.10) + Group(0.10) + VIP(0.10) + 0.10 × friends in server (max 4)
 		PassMult       = 2 with the 2x Essence pass
 		BoostMult      = 2 while a 2x Essence potion is active (stacks with the pass -> 4x)
+		IndexMult      = 1 + 0.01 × unique spirits discovered (Spirit Index)
 
 	Luck = SuperLuckPass(2) × Potion(2 or 5) × (1 + 0.10 × Soul Magnet level)
 ]]
@@ -20,6 +21,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local MonetizationConfig = require(Shared.Config.MonetizationConfig)
 local Formulas = require(Shared.Formulas)
+local RewardConfig = require(Shared.Config.RewardConfig)
 local Format = require(Shared.Util.Format)
 
 local EconomyService = {}
@@ -28,6 +30,14 @@ local Services: any
 local incomeCache: { [Player]: number } = {}
 local friendsWith: { [Player]: { [Player]: boolean } } = {}
 local groupMember: { [Player]: boolean } = {}
+
+local function countKeys(map: { [any]: any }?): number
+	local count = 0
+	for _ in pairs(map or {}) do
+		count += 1
+	end
+	return count
+end
 
 -- Multipliers -----------------------------------------------------------------------------
 local function countFriendsInServer(player: Player): number
@@ -67,8 +77,9 @@ function EconomyService:GetMultiplierBreakdown(player: Player)
 		Social = social,
 		Pass = monetization:HasPass(player, "DoubleEssence") and 2 or 1,
 		Boost = (data.Boosts.Essence2x or 0) > 0 and 2 or 1,
+		Index = 1 + countKeys(data.Index) * RewardConfig.IndexBonusPerSpecies,
 	}
-	breakdown.Total = breakdown.Rebirth * breakdown.Attunement * breakdown.Social * breakdown.Pass * breakdown.Boost
+	breakdown.Total = breakdown.Rebirth * breakdown.Attunement * breakdown.Social * breakdown.Pass * breakdown.Boost * breakdown.Index
 	return breakdown
 end
 

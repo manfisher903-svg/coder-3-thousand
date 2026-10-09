@@ -58,7 +58,14 @@ local DEFAULT_DATA = {
 	LastRobbed = nil,
 	LastOnline = 0,
 	LastIncome = 0,
-	Stats = { TotalEssence = 0, Steals = 0, BaseSteals = 0, TimesRobbed = 0, Hatched = 0, PlayTime = 0, RobuxSpent = 0 },
+	Candy = 0, -- seasonal event currency (kept between events)
+	Daily = { Streak = 0, LastClaimDay = 0 },
+	Quests = { Day = 0, List = {}, BonusClaimed = false },
+	Index = {}, -- [species] = true for every spirit ever hatched
+	Stats = {
+		TotalEssence = 0, Steals = 0, BaseSteals = 0, TimesRobbed = 0, Hatched = 0, PlayTime = 0, RobuxSpent = 0,
+		CandyEarned = 0, Bonks = 0, DaysPlayed = 0,
+	},
 }
 
 type Profile = {
@@ -241,6 +248,7 @@ function PlayerDataService:Replicate(player: Player)
 	player:SetAttribute("Pedestals", data.Pedestals)
 	player:SetAttribute("Rebirths", data.Rebirths)
 	player:SetAttribute("RebirthTokens", data.RebirthTokens)
+	player:SetAttribute("Candy", data.Candy)
 	local stats = player:FindFirstChild("leaderstats")
 	if stats then
 		(stats :: any).Essence.Value = Format.Number(data.Essence);
@@ -278,6 +286,11 @@ function PlayerDataService:BuildSnapshot(player: Player)
 		Income = Services.EconomyService:GetIncome(player),
 		Luck = Services.EconomyService:GetLuck(player),
 		Stats = data.Stats,
+		Candy = data.Candy,
+		Index = data.Index,
+		Rewards = Services.RewardService:GetSnapshot(player),
+		EventActive = Services.EventService:IsActive(),
+		ShieldUntil = data.ShieldUntil,
 		ServerTime = os.time(),
 	}
 end

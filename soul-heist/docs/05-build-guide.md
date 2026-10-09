@@ -34,7 +34,9 @@ ReplicatedStorage
     │   ├── EconomyConfig          (ModuleScript)
     │   ├── PetConfig              (ModuleScript)
     │   ├── BiomeConfig            (ModuleScript)
-    │   └── MonetizationConfig     (ModuleScript)
+    │   ├── MonetizationConfig     (ModuleScript)
+    │   ├── EventConfig            (ModuleScript)
+    │   └── RewardConfig           (ModuleScript)
     └── Util                       (Folder)
         ├── Format                 (ModuleScript)
         └── Signal                 (ModuleScript)
@@ -45,7 +47,8 @@ ServerScriptService
     ├── Config                     (Folder)
     │   └── Codes                  (ModuleScript)
     ├── Util                       (Folder)
-    │   └── RateLimiter            (ModuleScript)
+    │   ├── RateLimiter            (ModuleScript)
+    │   └── Rewards                (ModuleScript)
     ├── World                      (Folder)
     │   ├── WorldBuilder           (ModuleScript)
     │   └── ModelFactory           (ModuleScript)
@@ -63,7 +66,10 @@ ServerScriptService
         ├── UpgradeService         (ModuleScript)
         ├── RebirthService         (ModuleScript)
         ├── CodesService           (ModuleScript)
-        └── ToolService            (ModuleScript)
+        ├── ToolService            (ModuleScript)
+        ├── EventService           (ModuleScript)
+        ├── RewardService          (ModuleScript)
+        └── LeaderboardService     (ModuleScript)
 
 StarterPlayer
 └── StarterPlayerScripts
@@ -73,14 +79,14 @@ StarterPlayer
 
 > Tip: Insert a ModuleScript, rename it, double-click, select all, paste. The `.server` / `.client` suffixes in file names only tell you to use a **Script** or **LocalScript**; don't include them in the object name.
 
-**RemoteEvents / RemoteFunctions:** you do **not** create these by hand. `Remotes.Init()` creates `ReplicatedStorage.Remotes` with: `Notify, StateChanged, HatchResult, Announce, Knockback, DropOrb` (RemoteEvents) and `GetState, RequestUpgrade, RequestRebirth, BuyPerk, RedeemCode, PetAction, RequestLock` (RemoteFunctions).
+**RemoteEvents / RemoteFunctions:** you do **not** create these by hand. `Remotes.Init()` creates `ReplicatedStorage.Remotes` with: `Notify, StateChanged, HatchResult, Announce, Knockback, DropOrb` (RemoteEvents) and `GetState, RequestUpgrade, RequestRebirth, BuyPerk, RedeemCode, PetAction, RequestLock, ClaimDaily, ClaimPlaytime, ClaimQuest, BuyEventItem` (RemoteFunctions).
 
-**UI:** also created in code (`SoulHUD` ScreenGui): top bar, side menu (Upgrades / Spirits / Rebirth / Shop / Codes / Lock Base), carry bar, toasts, banners, and the hatch pop-up.
+**UI:** also created in code (`SoulHUD` ScreenGui): top bar, side menu (Event / Gifts / Upgrades / Spirits / Rebirth / Shop / Index / Codes / Lock Base), carry bar, toasts, banners, and the hatch pop-up.
 
 ## Phase 2: First play test (5 min)
 
 1. Press **Play**. Output should show:
-   `[WorldBuilder] Generated greybox world…` and `[SoulHeist] Server ready - 14 services running`.
+   `[WorldBuilder] Generated greybox world…` and `[SoulHeist] Server ready - 17 services running`.
 2. You spawn in your base (row of 8 plots). Run **forward (+Z)** to the green **Whispering Meadow**.
 3. Hold **E** on a glowing orb, run back, and walk into your plot. The orb lands on a pedestal and hatches in about 10s.
 4. Open **Upgrades** and buy Speed to 22, then try **Ember Hollow**. Under-speed players get pushed back at the gate.
@@ -92,7 +98,7 @@ StarterPlayer
 1. Publish the game (File → Publish to Roblox).
 2. **Creator Hub → Creations → Steal a Soul → Monetization**:
    - **Passes** → create the 10 passes from `docs/03-monetization.md` (icon 512×512, name, price, description).
-   - **Developer Products** → create the 16 products.
+   - **Developer Products** → create the 18 products (16 core + 2 Halloween Candy packs).
 3. Copy each ID into `src/shared/Config/MonetizationConfig.luau` (`Id = 0` → real ID). Anything left at `0` shows "Coming soon".
 4. Test purchases in Studio (Studio purchases are free test purchases), and check the Output for warnings.
 

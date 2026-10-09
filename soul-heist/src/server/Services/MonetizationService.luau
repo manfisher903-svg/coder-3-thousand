@@ -191,6 +191,16 @@ local ProductHandlers: { [string]: (Player, any) -> boolean } = {
 	end,
 	LegendaryOrb = grantOrb("Legendary"),
 	MythicOrb = grantOrb("Mythic"),
+	CandySmall = function(player)
+		Services.EventService:AddCandy(player, Effects.CandySmall, false)
+		Services.PlayerDataService:Notify(player, "+" .. Effects.CandySmall .. " Candy!", "success")
+		return true
+	end,
+	CandyLarge = function(player)
+		Services.EventService:AddCandy(player, Effects.CandyLarge, false)
+		Services.PlayerDataService:Notify(player, "+" .. Effects.CandyLarge .. " Candy!", "success")
+		return true
+	end,
 	ServerEclipse = function(player)
 		Services.DayNightService:StartEclipse(Effects.EclipseSeconds, player.DisplayName)
 		return true

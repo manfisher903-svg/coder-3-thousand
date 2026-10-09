@@ -66,6 +66,11 @@ local function onSwing(player: Player, isScythe: boolean)
 		Services.StealService:ApplySlow(victim, 0.3, stats.StunSeconds)
 		Services.StealService:Knockback(victim, root.Position, stats.Knockback)
 		Services.PlayerDataService:Notify(player, "You knocked " .. victim.DisplayName .. "'s soul loose! Grab it!", "success")
+		local data = Services.PlayerDataService:GetData(player)
+		if data then
+			data.Stats.Bonks += 1
+		end
+		Services.RewardService:Progress(player, "Bonk", 1)
 	else
 		Services.StealService:Knockback(victim, root.Position, stats.Knockback * 0.4)
 	end

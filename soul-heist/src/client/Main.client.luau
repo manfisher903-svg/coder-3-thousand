@@ -15,6 +15,7 @@ local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local PolicyService = game:GetService("PolicyService")
+local SoundService = game:GetService("SoundService")
 
 local player = Players.LocalPlayer
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -25,6 +26,8 @@ local EconomyConfig = require(Shared.Config:WaitForChild("EconomyConfig"))
 local PetConfig = require(Shared.Config:WaitForChild("PetConfig"))
 local BiomeConfig = require(Shared.Config:WaitForChild("BiomeConfig"))
 local MonetizationConfig = require(Shared.Config:WaitForChild("MonetizationConfig"))
+local RewardConfig = require(Shared.Config:WaitForChild("RewardConfig"))
+local EventConfig = require(Shared.Config:WaitForChild("EventConfig"))
 
 local THEME = {
 	Bg = Color3.fromRGB(22, 16, 38),
@@ -38,6 +41,39 @@ local THEME = {
 	SubText = Color3.fromRGB(190, 180, 220),
 	Font = Enum.Font.FredokaOne,
 }
+
+-- Seasonal re-skin: Halloween turns the UI orange & purple.
+local EVENT_ACTIVE = Workspace:GetAttribute("EventActive") == true
+if EVENT_ACTIVE then
+	THEME.Bg = Color3.fromRGB(26, 12, 30)
+	THEME.Panel = Color3.fromRGB(42, 20, 46)
+	THEME.Row = Color3.fromRGB(70, 34, 60)
+	THEME.Accent = Color3.fromRGB(255, 120, 30)
+end
+
+-- Sounds (built-in Roblox sounds; swap the ids for your own audio from the Creator Store)
+local SOUNDS = {
+	Ping = "rbxasset://sounds/electronicpingshort.wav",
+	Click = "rbxasset://sounds/clickfast.wav",
+	Hit = "rbxasset://sounds/swordlunge.wav",
+}
+local soundCache: { [string]: Sound } = {}
+local function playSound(name: string, pitch: number?)
+	local id = SOUNDS[name]
+	if not id then
+		return
+	end
+	local sound = soundCache[name]
+	if not sound then
+		sound = Instance.new("Sound")
+		sound.SoundId = id
+		sound.Volume = 0.5
+		sound.Parent = SoundService
+		soundCache[name] = sound
+	end
+	sound.PlaybackSpeed = pitch or 1
+	SoundService:PlayLocalSound(sound)
+end
 
 local snapshot: any = nil
 local serverTimeOffset = 0
@@ -104,6 +140,7 @@ local function button(text: string, color: Color3, onClick: () -> ()): TextButto
 		if busy then
 			return
 		end
+		playSound("Click", 1.2)
 		busy = true
 		task.spawn(function()
 			local ok, err = pcall(onClick)
@@ -156,7 +193,7 @@ end
 
 -- Banner (server-wide announcements) ------------------------------------------------------------------------
 local banner = label({
-	Name = "Banner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 120),
+	Name = "Banner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 192),
 	Size = UDim2.new(0.6, 0, 0, 40), Text = "", TextTransparency = 1, Parent = gui,
 })
 local bannerToken = 0
@@ -176,15 +213,20 @@ end
 -- Top bar ------------------------------------------------------------------------------------------------------
 local topBar = new("Frame", {
 	Name = "TopBar", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8),
-	Size = UDim2.fromOffset(460, 100), BackgroundColor3 = THEME.Bg, BackgroundTransparency = 0.15, Parent = gui,
+	Size = UDim2.fromOffset(460, 122), BackgroundColor3 = THEME.Bg, BackgroundTransparency = 0.15, Parent = gui,
 }, { corner(14), stroke(THEME.Accent, 2) })
 local essenceLabel = label({ Text = "0", TextColor3 = Color3.fromRGB(150, 255, 230), Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, 4), Parent = topBar })
 local incomeLabel = label({ Text = "+0/s", TextColor3 = THEME.Good, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.fromOffset(10, 44), Parent = topBar })
 local statsLabel = label({ Text = "", TextColor3 = THEME.SubText, Size = UDim2.new(1, -20, 0, 22), Position = UDim2.fromOffset(10, 70), Parent = topBar })
+local goalLabel = label({ Text = "", TextColor3 = THEME.Gold, Size = UDim2.new(1, -20, 0, 22), Position = UDim2.fromOffset(10, 95), Parent = topBar })
 
 local phaseLabel = label({
-	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 112), Size = UDim2.fromOffset(300, 0),
+	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 134), Size = UDim2.fromOffset(300, 0),
 	Text = "", Parent = gui,
+})
+local eventLabel = label({
+	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 162), Size = UDim2.fromOffset(420, EVENT_ACTIVE and 24 or 0),
+	Text = "", TextColor3 = Color3.fromRGB(255, 150, 50), Parent = gui,
 })
 
 -- Carry bar -------------------------------------------------------------------------------------------------------
@@ -537,6 +579,9 @@ local function refreshShop()
 		if key == "StealBack" and snapshot and snapshot.CanStealBack then
 			show = true
 		end
+		if info.Event and not (snapshot and snapshot.EventActive) then
+			show = false
+		end
 		if show then
 			order += 1
 			local productKey = key
@@ -581,41 +626,256 @@ do
 	label({ Text = "Follow the group & like the game for new codes!", TextColor3 = THEME.SubText, Size = UDim2.new(1, -8, 0, 30), LayoutOrder = 3, Parent = codesList })
 end
 
+-- Gifts panel (daily streak, playtime gifts, daily quests) ----------------------------------------------------------------------
+local _, giftsList = makePanel("Gifts", "Daily Gifts & Quests")
+local snapshotReceivedAt = os.clock()
+
+local function sessionSeconds(): number
+	local rewards = snapshot and snapshot.Rewards
+	if not rewards then
+		return 0
+	end
+	return rewards.SessionSeconds + (os.clock() - snapshotReceivedAt)
+end
+
+local function refreshGifts()
+	clearList(giftsList)
+	local rewards = snapshot and snapshot.Rewards
+	if not rewards then
+		return
+	end
+	local order = 0
+	local function nextOrder()
+		order += 1
+		return order
+	end
+
+	sectionHeader(giftsList, nextOrder(), string.format("Login Streak: %d day(s) | come back every day!", rewards.DailyStreak))
+	for day, entry in ipairs(RewardConfig.Daily) do
+		local isToday = day == rewards.DailyDay
+		local done = (not rewards.DailyCanClaim and day <= rewards.DailyDay) or (rewards.DailyCanClaim and day < rewards.DailyDay)
+		local buttons = nil
+		if isToday and rewards.DailyCanClaim then
+			buttons = { { Text = "CLAIM", Color = THEME.Good, OnClick = function()
+				local result = request("ClaimDaily")
+				if result and result.ok then
+					playSound("Ping", 1.3)
+				end
+			end } }
+		end
+		local status = if done then "Claimed" elseif isToday then (rewards.DailyCanClaim and "Ready!" or "Claimed") else "Locked"
+		local _, title = makeRow(giftsList, nextOrder(), string.format("Day %d: %s", day, entry.Label), status, buttons)
+		title.TextColor3 = isToday and THEME.Gold or (done and THEME.SubText or THEME.Text)
+	end
+
+	sectionHeader(giftsList, nextOrder(), "Playtime Gifts (this session)")
+	local claimedSet = {}
+	for _, index in ipairs(rewards.PlaytimeClaimed) do
+		claimedSet[index] = true
+	end
+	for index, gift in ipairs(RewardConfig.Playtime) do
+		local remaining = gift.Minutes * 60 - sessionSeconds()
+		local claimed = claimedSet[index]
+		local buttons = nil
+		if not claimed and remaining <= 0 then
+			buttons = { { Text = "CLAIM", Color = THEME.Good, OnClick = function()
+				local result = request("ClaimPlaytime", index)
+				if result and result.ok then
+					playSound("Ping", 1.2)
+				end
+			end } }
+		end
+		local status = if claimed then "Claimed" elseif remaining <= 0 then "Ready!" else ("in " .. Format.Time(remaining))
+		makeRow(giftsList, nextOrder(), string.format("%d min: %s", gift.Minutes, gift.Label), status, buttons)
+	end
+
+	sectionHeader(giftsList, nextOrder(), "Daily Quests | new quests in " .. Format.Time(rewards.NextResetIn))
+	local allClaimed = #rewards.Quests > 0
+	for index, quest in ipairs(rewards.Quests) do
+		allClaimed = allClaimed and quest.Claimed
+		local finished = quest.Progress >= quest.Goal
+		local buttons = nil
+		if finished and not quest.Claimed then
+			buttons = { { Text = "CLAIM", Color = THEME.Good, OnClick = function()
+				local result = request("ClaimQuest", index)
+				if result and result.ok then
+					playSound("Ping", 1.1)
+				end
+			end } }
+		end
+		local status = quest.Claimed and "Claimed" or string.format("%d / %d", quest.Progress, quest.Goal)
+		makeRow(giftsList, nextOrder(), quest.Text, status, buttons)
+	end
+	local bonusButtons = nil
+	if allClaimed and not rewards.QuestBonusClaimed then
+		bonusButtons = { { Text = "CLAIM", Color = THEME.Gold, OnClick = function()
+			local result = request("ClaimQuest", "Bonus")
+			if result and result.ok then
+				playSound("Ping", 1.5)
+			end
+		end } }
+	end
+	makeRow(giftsList, nextOrder(), "Finish all 3: LEGENDARY Soul", rewards.QuestBonusClaimed and "Claimed" or "Complete every quest today", bonusButtons)
+end
+
+-- Count of things waiting to be claimed (drives the "!" badge on the Gifts button)
+local function claimableCount(): number
+	local rewards = snapshot and snapshot.Rewards
+	if not rewards then
+		return 0
+	end
+	local count = rewards.DailyCanClaim and 1 or 0
+	local claimedSet = {}
+	for _, index in ipairs(rewards.PlaytimeClaimed) do
+		claimedSet[index] = true
+	end
+	for index, gift in ipairs(RewardConfig.Playtime) do
+		if not claimedSet[index] and sessionSeconds() >= gift.Minutes * 60 then
+			count += 1
+		end
+	end
+	local allClaimed = #rewards.Quests > 0
+	for _, quest in ipairs(rewards.Quests) do
+		if quest.Progress >= quest.Goal and not quest.Claimed then
+			count += 1
+		end
+		allClaimed = allClaimed and quest.Claimed
+	end
+	if allClaimed and not rewards.QuestBonusClaimed then
+		count += 1
+	end
+	return count
+end
+
+-- Event panel (Halloween Candy Shop) -------------------------------------------------------------------------------------------------
+local _, eventList = makePanel("Event", EventConfig.Name)
+
+local function refreshEvent()
+	clearList(eventList)
+	local endsIn = (Workspace:GetAttribute("EventEndsAt") or 0) - (os.time() + serverTimeOffset)
+	sectionHeader(eventList, 1, string.format("Candy: %s | ends in %s", Format.Number(attr("Candy", 0)), Format.Time(math.max(0, endsIn))))
+	makeRow(eventList, 2, "How to get Candy", "Collect glowing pumpkins, bring souls home, finish quests", nil)
+	for i, item in ipairs(EventConfig.Shop) do
+		local itemId = item.Id
+		local affordable = attr("Candy", 0) >= item.Cost
+		makeRow(eventList, 2 + i, item.Name, item.Desc, {
+			{ Text = item.Cost .. " Candy", Color = affordable and THEME.Accent or THEME.Row, OnClick = function()
+				local result = request("BuyEventItem", itemId)
+				if result and result.ok then
+					playSound("Ping", 0.9)
+				end
+			end },
+		})
+	end
+	local order = 20
+	for _, key in ipairs({ "CandySmall", "CandyLarge" }) do
+		local info = MonetizationConfig.Products[key]
+		order += 1
+		local productKey = key
+		makeRow(eventList, order, info.Name, info.Desc, {
+			{ Text = "R$ " .. info.Price, Color = THEME.Gold, OnClick = function() promptProduct(productKey) end },
+		})
+	end
+end
+
+-- Spirit Index panel -----------------------------------------------------------------------------------------------------------------
+local _, indexList = makePanel("Index", "Spirit Index")
+
+local function refreshIndex()
+	clearList(indexList)
+	local discovered = snapshot and snapshot.Index or {}
+	local total, found = 0, 0
+	for _, biomeId in ipairs(BiomeConfig.Order) do
+		for _, species in pairs(BiomeConfig.Get(biomeId).Species) do
+			total += 1
+			if discovered[species] then
+				found += 1
+			end
+		end
+	end
+	sectionHeader(indexList, 0, string.format("%d / %d discovered | +%d%% Essence forever", found, total, math.floor(found * RewardConfig.IndexBonusPerSpecies * 100 + 0.5)))
+	for i, biomeId in ipairs(BiomeConfig.Order) do
+		local biome = BiomeConfig.Get(biomeId)
+		local count = 0
+		for _, species in pairs(biome.Species) do
+			if discovered[species] then
+				count += 1
+			end
+		end
+		sectionHeader(indexList, i * 2 - 1, string.format("%s  %d/7", biome.Name, count))
+		local grid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -8, 0, 96), LayoutOrder = i * 2, Parent = indexList }, {
+			new("UIGridLayout", { CellSize = UDim2.new(0.25, -6, 0, 44), CellPadding = UDim2.fromOffset(6, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
+		})
+		for order, rarityId in ipairs(PetConfig.RarityOrder) do
+			local species = biome.Species[rarityId]
+			local known = discovered[species] == true
+			local cell = new("Frame", { BackgroundColor3 = known and THEME.Row or THEME.Bg, LayoutOrder = order, Parent = grid }, { corner(8) })
+			label({
+				Text = known and species or "???", TextColor3 = known and PetConfig.GetRarity(rarityId).Color or THEME.SubText,
+				Size = UDim2.new(1, -6, 1, -4), Position = UDim2.fromOffset(3, 2), Parent = cell,
+			})
+		end
+	end
+end
+
 -- Side menu ------------------------------------------------------------------------------------------------------------------------
 local menu = new("Frame", {
-	Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(120, 380),
+	Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(120, 540),
 	BackgroundTransparency = 1, Parent = gui,
 }, { new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }) })
 
 local menuItems = {
+	{ "Gifts", Color3.fromRGB(255, 90, 140) },
 	{ "Upgrades", THEME.Good },
 	{ "Spirits", THEME.Accent },
 	{ "Rebirth", Color3.fromRGB(230, 90, 230) },
 	{ "Shop", THEME.Gold },
+	{ "Index", Color3.fromRGB(90, 200, 220) },
 	{ "Codes", Color3.fromRGB(80, 160, 255) },
 }
+if EVENT_ACTIVE then
+	table.insert(menuItems, 1, { "Event", Color3.fromRGB(255, 120, 30) })
+end
+local menuButtons: { [string]: TextButton } = {}
+local function refreshPanel(name: string)
+	if name == "Upgrades" then
+		refreshUpgrades()
+	elseif name == "Spirits" then
+		refreshSpirits()
+	elseif name == "Rebirth" then
+		refreshRebirth()
+	elseif name == "Shop" then
+		refreshShop()
+	elseif name == "Gifts" then
+		refreshGifts()
+	elseif name == "Event" then
+		refreshEvent()
+	elseif name == "Index" then
+		refreshIndex()
+	end
+end
 for i, item in ipairs(menuItems) do
 	local name = item[1]
 	local b = button(name, item[2], function()
 		togglePanel(name)
-		if name == "Upgrades" then
-			refreshUpgrades()
-		elseif name == "Spirits" then
-			refreshSpirits()
-		elseif name == "Rebirth" then
-			refreshRebirth()
-		elseif name == "Shop" then
-			refreshShop()
-		end
+		refreshPanel(name)
 	end)
-	b.Size = UDim2.new(1, 0, 0, 52)
+	menuButtons[name] = b
+	b.Size = UDim2.new(1, 0, 0, 44)
 	b.LayoutOrder = i
 	b.Parent = menu
 end
 local lockButton = button("Lock Base", Color3.fromRGB(60, 140, 200), function()
 	request("RequestLock")
 end)
-lockButton.Size = UDim2.new(1, 0, 0, 52)
+lockButton.Size = UDim2.new(1, 0, 0, 44)
+
+-- Red "!" badge on Gifts when something can be claimed
+local giftBadge = label({
+	Text = "!", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -4, 0, 4), Size = UDim2.fromOffset(26, 26),
+	BackgroundTransparency = 0, BackgroundColor3 = THEME.Bad, Visible = false, ZIndex = 5, Parent = menuButtons.Gifts,
+})
+new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = giftBadge })
 lockButton.LayoutOrder = 10
 lockButton.Parent = menu
 
@@ -633,7 +893,10 @@ local function showHatch(result)
 	hatchToken += 1
 	local token = hatchToken
 	local rarity = PetConfig.GetRarity(result.Rarity)
-	hatchTitle.Text = result.Ascended and "ASCENDED! Your soul hatched into..." or "Your soul hatched into..."
+	hatchTitle.Text = if result.NewDiscovery then "NEW SPIRIT DISCOVERED! (+1% Essence forever)"
+		elseif result.Ascended then "ASCENDED! Your soul hatched into..."
+		else "Your soul hatched into..."
+	playSound("Ping", 0.8 + rarity.Order * 0.1)
 	hatchName.Text = (result.Mutation ~= "None" and (result.Mutation .. " ") or "") .. result.Species
 	hatchName.TextColor3 = rarity.Color
 	hatchInfo.Text = string.format("%s | +%s Essence/s", result.Rarity, Format.Number(result.Income))
@@ -653,6 +916,26 @@ local function refreshTopBar()
 	incomeLabel.Text = "+" .. Format.Number(attr("Income", 0)) .. "/s"
 	local rebirths = attr("Rebirths", 0)
 	statsLabel.Text = string.format("Speed %d  |  Rebirth %d (x%.1f)  |  Luck x%.1f", attr("Speed", 16), rebirths, Formulas.RebirthMultiplier(rebirths), attr("Luck", 1))
+
+	-- "Next goal" hint: next biome to unlock, otherwise the next rebirth
+	local speed = attr("Speed", 16)
+	local goal = nil
+	for _, id in ipairs(BiomeConfig.Order) do
+		local biome = BiomeConfig.Get(id)
+		if speed < biome.SpeedRequired then
+			goal = string.format("Next: %d Speed unlocks %s (x%s souls)", biome.SpeedRequired, biome.Name, Format.Number(biome.IncomeMult))
+			break
+		end
+	end
+	if not goal then
+		local cost = Formulas.RebirthCost(rebirths)
+		goal = string.format("Next: Rebirth at %s Essence (%s)", Format.Number(cost), Format.Percent(math.min(1, attr("Essence", 0) / cost)))
+	end
+	goalLabel.Text = goal
+
+	if EVENT_ACTIVE then
+		eventLabel.Text = string.format("%s | Candy: %s", EventConfig.Name, Format.Number(attr("Candy", 0)))
+	end
 end
 
 local function refreshCarry()
@@ -685,17 +968,15 @@ local function onSnapshot(newSnapshot)
 		return
 	end
 	snapshot = newSnapshot
+	snapshotReceivedAt = os.clock()
 	serverTimeOffset = (newSnapshot.ServerTime or os.time()) - os.time()
-	if openPanelName == "Spirits" then
-		refreshSpirits()
-	elseif openPanelName == "Rebirth" then
-		refreshRebirth()
-	elseif openPanelName == "Shop" then
-		refreshShop()
+	if openPanelName and openPanelName ~= "Upgrades" and openPanelName ~= "Codes" then
+		refreshPanel(openPanelName)
 	end
+	giftBadge.Visible = claimableCount() > 0
 end
 
-for _, name in ipairs({ "Essence", "Income", "Speed", "Rebirths", "Luck" }) do
+for _, name in ipairs({ "Essence", "Income", "Speed", "Rebirths", "Luck", "Candy" }) do
 	player:GetAttributeChangedSignal(name):Connect(function()
 		refreshTopBar()
 		if openPanelName == "Upgrades" then
@@ -710,7 +991,18 @@ for _, name in ipairs({ "TreadmillTier", "CarryLevel", "Pedestals" }) do
 		end
 	end)
 end
-player:GetAttributeChangedSignal("CarryingRarity"):Connect(refreshCarry)
+player:GetAttributeChangedSignal("CarryingRarity"):Connect(function()
+	refreshCarry()
+	local rarity = player:GetAttribute("CarryingRarity")
+	if rarity then
+		playSound("Ping", 1 + PetConfig.GetRarity(rarity).Order * 0.08)
+	end
+end)
+player:GetAttributeChangedSignal("Candy"):Connect(function()
+	if openPanelName == "Event" then
+		refreshEvent()
+	end
+end)
 Workspace:GetAttributeChangedSignal("IsNight"):Connect(refreshPhase)
 Workspace:GetAttributeChangedSignal("IsEclipse"):Connect(refreshPhase)
 
@@ -722,6 +1014,7 @@ Remotes.Event("Knockback").OnClientEvent:Connect(function(velocity: Vector3)
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if root and typeof(velocity) == "Vector3" then
 		root.AssemblyLinearVelocity = velocity
+		playSound("Hit", 0.9)
 	end
 end)
 
@@ -778,6 +1071,76 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- Guide beam ----------------------------------------------------------------------------------------------------------------------------------
+-- Points home while you carry a soul, and to the nearest soul you can reach during your first 15 steals.
+local guidePart = new("Part", {
+	Name = "GuideTarget", Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false,
+	Transparency = 1, Size = Vector3.one, Parent = Workspace,
+})
+local guideTargetAttachment = new("Attachment", { Parent = guidePart })
+local guideBeam = new("Beam", {
+	Attachment1 = guideTargetAttachment, Width0 = 0.7, Width1 = 0.7, FaceCamera = true, LightEmission = 1,
+	Color = ColorSequence.new(THEME.Gold), Transparency = NumberSequence.new(0.35), Segments = 1, Enabled = false, Parent = guidePart,
+})
+
+local function findGuideTarget(root: BasePart): Vector3?
+	if player:GetAttribute("CarryingRarity") then
+		local bases = Workspace:FindFirstChild("Bases")
+		local base = bases and bases:FindFirstChild(player:GetAttribute("BaseName") or "")
+		local zone = base and base:FindFirstChild("Zone")
+		if zone and zone:IsA("BasePart") then
+			return Vector3.new(zone.Position.X, root.Position.Y, zone.Position.Z)
+		end
+		return nil
+	end
+	local steals = snapshot and snapshot.Stats and snapshot.Stats.Steals or 0
+	if steals >= 15 then
+		return nil
+	end
+	local biomes = Workspace:FindFirstChild("Biomes")
+	if not biomes then
+		return nil
+	end
+	local speed = attr("Speed", 16)
+	local best, bestDistance = nil, math.huge
+	for _, biomeModel in ipairs(biomes:GetChildren()) do
+		local config = BiomeConfig.Biomes[biomeModel.Name]
+		if config and speed >= config.SpeedRequired then
+			for _, child in ipairs(biomeModel:GetChildren()) do
+				if child.Name == "SoulOrb" and child:IsA("Model") and child.PrimaryPart then
+					local distance = (child.PrimaryPart.Position - root.Position).Magnitude
+					if distance < bestDistance then
+						best, bestDistance = child.PrimaryPart.Position, distance
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+task.spawn(function()
+	local lastGiftsRefresh = 0
+	while true do
+		task.wait(0.3)
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local target = root and findGuideTarget(root)
+		if root and target then
+			local attachment = root:FindFirstChild("GuideAttachment") or new("Attachment", { Name = "GuideAttachment", Parent = root })
+			guideBeam.Attachment0 = attachment
+			guidePart.Position = target
+			guideBeam.Enabled = true
+		else
+			guideBeam.Enabled = false
+		end
+		giftBadge.Visible = claimableCount() > 0
+		if openPanelName == "Gifts" and os.clock() - lastGiftsRefresh > 5 then
+			lastGiftsRefresh = os.clock()
+			refreshGifts()
+		end
+	end
+end)
+
 -- Initial state -------------------------------------------------------------------------------------------------------------------------------
 task.spawn(function()
 	while not player:GetAttribute("DataLoaded") do
@@ -797,4 +1160,12 @@ task.spawn(function()
 	refreshCarry()
 	refreshPhase()
 	toast("Steal glowing souls, run them home, hatch spirits, get rich!", "info")
+	if EVENT_ACTIVE then
+		announce("The " .. EventConfig.Name .. " is here! Collect pumpkins for Candy!", Color3.fromRGB(255, 140, 40))
+	end
+	-- Pop the Gifts panel open when today's login reward is waiting.
+	if snapshot and snapshot.Rewards and snapshot.Rewards.DailyCanClaim and openPanelName == nil then
+		togglePanel("Gifts")
+		refreshGifts()
+	end
 end)

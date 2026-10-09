@@ -26,7 +26,7 @@ local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local ModelFactory = require(script.Parent.Parent.World.ModelFactory)
 
 export type Carried = {
-	Orb: { Rarity: string, Biome: string },
+	Orb: { Rarity: string, Biome: string, Mutation: string? },
 	Visual: Model?,
 	StolenFromUserId: number?,
 }
@@ -139,7 +139,7 @@ local function setThiefHighlight(player: Player, on: boolean)
 	end
 end
 
-function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: string }, stolenFromUserId: number?): boolean
+function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: string, Mutation: string? }, stolenFromUserId: number?): boolean
 	local root = getRoot(player)
 	local humanoid = getHumanoid(player)
 	if not root or not humanoid or humanoid.Health <= 0 or carrying[player] then
@@ -149,7 +149,7 @@ function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: strin
 		return false
 	end
 
-	local visual = ModelFactory.MakeOrb(orb.Rarity, orb.Biome)
+	local visual = ModelFactory.MakeOrb(orb.Rarity, orb.Biome, orb.Mutation)
 	visual:PivotTo(root.CFrame * CFrame.new(0, 4.5, 0))
 	for _, part in ipairs(visual:GetDescendants()) do
 		if part:IsA("BasePart") then
@@ -165,7 +165,7 @@ function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: strin
 	visual.Name = "CarriedSoul"
 	visual.Parent = player.Character
 
-	carrying[player] = { Orb = { Rarity = orb.Rarity, Biome = orb.Biome }, Visual = visual, StolenFromUserId = stolenFromUserId }
+	carrying[player] = { Orb = { Rarity = orb.Rarity, Biome = orb.Biome, Mutation = orb.Mutation }, Visual = visual, StolenFromUserId = stolenFromUserId }
 	player:SetAttribute("CarryingRarity", orb.Rarity)
 	player:SetAttribute("CarryingBiome", orb.Biome)
 	if stolenFromUserId then
@@ -283,9 +283,19 @@ local function tryDeliver(player: Player)
 	end
 	local data = Services.PlayerDataService:GetData(player)
 	data.Stats.Steals += 1
+	local rewards = Services.RewardService
+	rewards:Progress(player, "Deliver", 1)
+	if PetConfig.GetRarity(carried.Orb.Rarity).Order >= 3 then
+		rewards:Progress(player, "DeliverRare", 1)
+	end
+	if Services.DayNightService:IsNight() then
+		rewards:Progress(player, "DeliverNight", 1)
+	end
 	if carried.StolenFromUserId then
 		data.Stats.BaseSteals += 1
+		rewards:Progress(player, "BaseSteal", 1)
 	end
+	Services.EventService:OnDeliver(player, carried.Orb.Rarity)
 	StealService:Clear(player)
 	local biome = BiomeConfig.Get(carried.Orb.Biome)
 	local hatchSeconds = Services.PetService:GetHatchDuration(player, carried.Orb.Rarity, carried.Orb.Biome)

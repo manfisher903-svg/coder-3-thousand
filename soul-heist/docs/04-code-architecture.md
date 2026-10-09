@@ -1,6 +1,6 @@
 # 4. Code Architecture
 
-About 5,700 lines of Luau, server-authoritative, with no external dependencies. All of it parses with `luau-compile` and passes `luau-lsp analyze` against the Roblox API definitions.
+About 7,000 lines of Luau, server-authoritative, with no external dependencies. All of it parses with `luau-compile` and passes `luau-lsp analyze` against the Roblox API definitions.
 
 ```
 src/
@@ -10,7 +10,9 @@ src/
 │   │   ├── EconomyConfig.luau     every price & formula constant
 │   │   ├── PetConfig.luau         rarities, mutations, ascension
 │   │   ├── BiomeConfig.luau       biomes, guardians, 56 species names
-│   │   └── MonetizationConfig.luau pass/product IDs, prices, effect constants
+│   │   ├── MonetizationConfig.luau pass/product IDs, prices, effect constants
+│   │   ├── EventConfig.luau       seasonal event settings (Halloween: dates, candy, shop)
+│   │   └── RewardConfig.luau      daily streak, playtime gifts, quest pool, index bonus
 │   ├── Util/Format.luau           1.2K / 3.4M / 5.6B number + time formatting
 │   ├── Util/Signal.luau           tiny in-process event
 │   ├── Formulas.luau              all cost/income math (UI and server agree 100%)
@@ -20,6 +22,7 @@ src/
 │   ├── Main.server.luau           bootstrap: Remotes → WorldBuilder → Init all → Start all
 │   ├── Config/Codes.luau          promo codes (server-only so they can't be datamined)
 │   ├── Util/RateLimiter.luau      per-player per-action cooldowns
+│   ├── Util/Rewards.luau          one reward format for codes/daily/quests/gifts/shop
 │   ├── World/WorldBuilder.luau    generates a greybox map if you have none yet
 │   ├── World/ModelFactory.luau    orb/pet/guardian/tool visuals (auto-uses your art if present)
 │   └── Services/
@@ -36,7 +39,10 @@ src/
 │       ├── CodesService           redeem codes
 │       ├── DayNightService        cycle, night & Eclipse modifiers
 │       ├── ToolService            Soul Lantern / Reaper Scythe hit logic
-│       └── AntiExploitService     movement checks + the only safe Teleport()
+│       ├── AntiExploitService     movement checks + the only safe Teleport()
+│       ├── RewardService          daily streak, playtime gifts, daily quests
+│       ├── EventService           seasonal event (Halloween): lighting, decor, candy, shop
+│       └── LeaderboardService     global top-10 boards (OrderedDataStore)
 └── client/                      → StarterPlayer.StarterPlayerScripts.Client
     └── Main.client.luau           builds the entire HUD in code + VFX bobbing
 ```

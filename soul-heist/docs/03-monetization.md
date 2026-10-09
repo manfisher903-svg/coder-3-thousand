@@ -41,6 +41,8 @@ Total for all passes: about 2,840 R$. Most whales buy 4–6.
 | **Legendary Soul** | **399 R$** | Legendary orb from your best biome | Shop |
 | **Mythic Soul** | **1,299 R$** | Mythic orb from your best biome | Shop, top of ladder |
 | **Summon Soul Eclipse** | **499 R$** | 15-min server-wide 5x spawn luck, buyer named in banner | Shop; social flex |
+| **Candy Bag** (event) | **49 R$** | 120 Candy | Event panel, Halloween only |
+| **Candy Cauldron** (event) | **199 R$** | 600 Candy (best value) | Event panel, Halloween only |
 
 **Essence packs scale with income** (`max(floor, income × seconds)`), so they stay worth buying at every stage of the game. That's the single most important rule for repeat purchases.
 

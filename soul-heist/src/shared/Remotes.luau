@@ -20,6 +20,10 @@
 		RedeemCode(code)
 		PetAction(action, arg1, arg2)        action: "Store"|"Place"|"Sell"|"Lock"
 		RequestLock()                        lock your base
+		ClaimDaily()                         claim today's login-streak reward
+		ClaimPlaytime(index)                 claim a session playtime gift
+		ClaimQuest(index | "Bonus")          claim a finished daily quest / the all-quests bonus
+		BuyEventItem(itemId)                 buy from the seasonal event shop with Candy
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,7 +32,10 @@ local RunService = game:GetService("RunService")
 local Remotes = {}
 
 Remotes.EventNames = { "Notify", "StateChanged", "HatchResult", "Announce", "Knockback", "DropOrb" }
-Remotes.FunctionNames = { "GetState", "RequestUpgrade", "RequestRebirth", "BuyPerk", "RedeemCode", "PetAction", "RequestLock" }
+Remotes.FunctionNames = {
+	"GetState", "RequestUpgrade", "RequestRebirth", "BuyPerk", "RedeemCode", "PetAction", "RequestLock",
+	"ClaimDaily", "ClaimPlaytime", "ClaimQuest", "BuyEventItem",
+}
 
 local FOLDER_NAME = "Remotes"
 

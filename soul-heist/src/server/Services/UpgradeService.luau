@@ -41,6 +41,7 @@ local function buySpeed(player: Player, data: any, amount: any)
 	end
 	data.Speed += count
 	Services.StealService:RefreshWalkSpeed(player)
+	Services.RewardService:Progress(player, "BuySpeed", count)
 	return { ok = true, msg = string.format("+%d Speed (now %d)", count, data.Speed) }
 end
 

@@ -265,6 +265,65 @@ return EconomyConfig
         </Item>
         <Item class="ModuleScript" referent="5">
           <Properties>
+            <string name="Name">EventConfig</string>
+            <string name="Source"><![CDATA[--[[
+	EventConfig
+	Limited-time seasonal events. Only one runs at a time.
+	Hallow-Soul Festival (Halloween): spooky lighting + decorations, Candy pumpkins to collect,
+	Candy from every delivered soul, the event-only "Haunted" mutation (x10), and a Candy Shop.
+
+	To end the event early set Active = false. It also auto-ends at EndsAt (unix time, UTC).
+]]
+
+local EventConfig = {
+	Active = true,
+	Id = "Halloween2026",
+	Name = "Hallow-Soul Festival",
+	EndsAt = 1793577600, -- 2026-11-02 00:00 UTC
+	Currency = "Candy",
+
+	-- Candy pumpkins scattered around the hub and biomes
+	MaxPumpkins = 30,
+	PumpkinRespawnSeconds = 6,
+	PumpkinCandy = { Min = 1, Max = 4 },
+	GoldenPumpkinChance = 0.05, -- golden pumpkins give 15 candy
+	GoldenPumpkinCandy = 15,
+
+	-- Candy for delivering a soul home = DeliverCandyBase + rarity order (Common 1 ... Secret 7)
+	DeliverCandyBase = 1,
+
+	-- Haunted mutation chance during the event (x10 income). See PetConfig.Mutations.Haunted.
+
+	-- Candy Shop. Orb entries come from the player's best unlocked biome with a guaranteed mutation.
+	Shop = {
+		{ Id = "HauntedRare", Name = "Haunted Rare Soul", Desc = "Guaranteed Haunted (x10)", Cost = 60, Orb = { Rarity = "Rare", Mutation = "Haunted" } },
+		{ Id = "HauntedEpic", Name = "Haunted Epic Soul", Desc = "Guaranteed Haunted (x10)", Cost = 180, Orb = { Rarity = "Epic", Mutation = "Haunted" } },
+		{ Id = "HauntedLegendary", Name = "Haunted Legendary Soul", Desc = "Guaranteed Haunted (x10)", Cost = 600, Orb = { Rarity = "Legendary", Mutation = "Haunted" } },
+		{ Id = "HauntedMythic", Name = "Haunted Mythic Soul", Desc = "Guaranteed Haunted (x10)", Cost = 2000, Orb = { Rarity = "Mythic", Mutation = "Haunted" } },
+		{ Id = "CandyLuck", Name = "Witch's Brew (15m)", Desc = "2x Luck for 15 minutes", Cost = 40, Boost = { Kind = "Luck2x", Seconds = 900 } },
+		{ Id = "CandyEssence", Name = "Pumpkin Spice (15m)", Desc = "2x Essence for 15 minutes", Cost = 60, Boost = { Kind = "Essence2x", Seconds = 900 } },
+	},
+
+	-- Lighting while the event runs
+	Lighting = {
+		OutdoorAmbient = Color3.fromRGB(110, 70, 120),
+		FogColor = Color3.fromRGB(60, 30, 70),
+		AtmosphereDensity = 0.38,
+		AtmosphereColor = Color3.fromRGB(200, 120, 60),
+		Tint = Color3.fromRGB(255, 225, 200),
+	},
+}
+
+function EventConfig.IsActive(): boolean
+	return EventConfig.Active and os.time() < EventConfig.EndsAt
+end
+
+return EventConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="6">
+          <Properties>
             <string name="Name">GameConfig</string>
             <string name="Source"><![CDATA[--[[
 	GameConfig
@@ -335,7 +394,7 @@ return GameConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="6">
+        <Item class="ModuleScript" referent="7">
           <Properties>
             <string name="Name">MonetizationConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -346,7 +405,7 @@ return GameConfig
 ]]
 
 export type PassInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number }
-export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean? }
+export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean?, Event: boolean? }
 
 local MonetizationConfig = {}
 
@@ -380,6 +439,9 @@ MonetizationConfig.Products = {
 	LegendaryOrb = { Id = 0, Price = 399, Order = 14, Name = "Legendary Soul", Desc = "A Legendary orb from your best unlocked biome" },
 	MythicOrb = { Id = 0, Price = 1299, Order = 15, Name = "Mythic Soul", Desc = "A Mythic orb from your best unlocked biome" },
 	ServerEclipse = { Id = 0, Price = 499, Order = 16, Name = "Summon Soul Eclipse", Desc = "15 min server-wide Eclipse: 5x spawn luck for EVERYONE" },
+	-- Seasonal (only shown while an event is active)
+	CandySmall = { Id = 0, Price = 49, Order = 17, Name = "Candy Bag", Desc = "120 Candy for the event shop", Event = true },
+	CandyLarge = { Id = 0, Price = 199, Order = 18, Name = "Candy Cauldron", Desc = "600 Candy for the event shop (BEST VALUE)", Event = true },
 } :: { [string]: ProductInfo }
 
 -- Effect constants used by the server
@@ -394,6 +456,8 @@ MonetizationConfig.Effects = {
 	ExtraPedestals = 5,
 	PhantomSpeed = 4,
 	PhantomLighter = 0.25,
+	CandySmall = 120,
+	CandyLarge = 600,
 }
 
 function MonetizationConfig.FindProductKey(productId: number): string?
@@ -418,7 +482,7 @@ return MonetizationConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="7">
+        <Item class="ModuleScript" referent="8">
           <Properties>
             <string name="Name">PetConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -449,6 +513,7 @@ export type Mutation = {
 	Color: Color3,
 	NightOnly: boolean?,
 	EclipseOnly: boolean?,
+	EventOnly: boolean?,
 }
 
 local PetConfig = {}
@@ -494,7 +559,7 @@ PetConfig.Rarities = {
 } :: { [string]: Rarity }
 
 -- Mutations are rolled at HATCH time with the hatcher's luck (rarest first, first success wins).
-PetConfig.MutationOrder = { "Rainbow", "Eclipsed", "Voidtouched", "Celestial", "Moonlit", "Spectral", "Gilded" }
+PetConfig.MutationOrder = { "Rainbow", "Eclipsed", "Voidtouched", "Haunted", "Celestial", "Moonlit", "Spectral", "Gilded" }
 
 PetConfig.Mutations = {
 	None = { Id = "None", Mult = 1, Chance = 0, Color = Color3.new(1, 1, 1) },
@@ -505,6 +570,8 @@ PetConfig.Mutations = {
 	Voidtouched = { Id = "Voidtouched", Mult = 15, Chance = 0.0005, Color = Color3.fromRGB(90, 0, 140) },
 	Eclipsed = { Id = "Eclipsed", Mult = 40, Chance = 0.003, Color = Color3.fromRGB(255, 60, 0), EclipseOnly = true },
 	Rainbow = { Id = "Rainbow", Mult = 25, Chance = 0.0001, Color = Color3.fromRGB(255, 0, 255) },
+	-- Seasonal: only rolls while a seasonal event is active (EventConfig), also sold in the Candy Shop.
+	Haunted = { Id = "Haunted", Mult = 10, Chance = 0.01, Color = Color3.fromRGB(255, 130, 20), EventOnly = true },
 } :: { [string]: Mutation }
 
 -- "Ascension": on hatch, chance for the soul to jump one rarity tier. Scales with luck.
@@ -532,8 +599,73 @@ return PetConfig
 ]]></string>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="9">
+          <Properties>
+            <string name="Name">RewardConfig</string>
+            <string name="Source"><![CDATA[--[[
+	RewardConfig
+	Daily login streak, playtime gifts and daily quests.
+
+	Reward table fields (all optional, combine freely) - same format as promo codes:
+		Essence        flat Essence
+		IncomeSeconds  Essence = max(Essence, income/sec * IncomeSeconds) -> scales with progress
+		Boost          { Kind = "Essence2x" | "Luck2x" | "Luck5x", Seconds = n }
+		Orb            { Rarity = "Epic", Biome = "Best", Mutation = "Haunted"? }
+		Candy          event currency (only granted while an event is active)
+]]
+
+local RewardConfig = {}
+
+-- 7-day login streak. Claim once per UTC day; miss a day and the streak restarts at day 1.
+RewardConfig.Daily = {
+	{ Label = "Essence", Rewards = { Essence = 500, IncomeSeconds = 10 * 60 } },
+	{ Label = "2x Luck 15m", Rewards = { Boost = { Kind = "Luck2x", Seconds = 15 * 60 } } },
+	{ Label = "Big Essence", Rewards = { Essence = 2_000, IncomeSeconds = 30 * 60 } },
+	{ Label = "2x Essence 30m", Rewards = { Boost = { Kind = "Essence2x", Seconds = 30 * 60 } } },
+	{ Label = "Epic Soul", Rewards = { Orb = { Rarity = "Epic", Biome = "Best" } } },
+	{ Label = "Huge Essence", Rewards = { Essence = 10_000, IncomeSeconds = 60 * 60, Candy = 50 } },
+	{ Label = "LEGENDARY Soul", Rewards = { Orb = { Rarity = "Legendary", Biome = "Best" }, Boost = { Kind = "Luck5x", Seconds = 15 * 60 } } },
+}
+
+-- Gifts unlocked by minutes played in THIS session (claim from the Gifts panel).
+RewardConfig.Playtime = {
+	{ Minutes = 3, Label = "Essence", Rewards = { Essence = 300, IncomeSeconds = 3 * 60 } },
+	{ Minutes = 10, Label = "Rare Soul", Rewards = { Orb = { Rarity = "Rare", Biome = "Best" } } },
+	{ Minutes = 20, Label = "2x Luck 10m", Rewards = { Boost = { Kind = "Luck2x", Seconds = 10 * 60 }, Candy = 20 } },
+	{ Minutes = 35, Label = "Epic Soul", Rewards = { Orb = { Rarity = "Epic", Biome = "Best" } } },
+	{ Minutes = 60, Label = "Essence Jackpot", Rewards = { IncomeSeconds = 45 * 60, Essence = 5_000, Candy = 50 } },
+}
+
+-- Daily quests: 3 picked per player per day from this pool.
+-- Kind is the event counted by QuestService:Progress(player, kind, amount).
+RewardConfig.QuestPool = {
+	{ Id = "Steal8", Kind = "Deliver", Goal = 8, Text = "Bring 8 souls home", Rewards = { IncomeSeconds = 10 * 60, Essence = 500, Candy = 15 } },
+	{ Id = "Steal20", Kind = "Deliver", Goal = 20, Text = "Bring 20 souls home", Rewards = { IncomeSeconds = 25 * 60, Essence = 1_500, Candy = 30 } },
+	{ Id = "Hatch5", Kind = "Hatch", Goal = 5, Text = "Hatch 5 spirits", Rewards = { IncomeSeconds = 10 * 60, Essence = 500, Candy = 15 } },
+	{ Id = "Hatch15", Kind = "Hatch", Goal = 15, Text = "Hatch 15 spirits", Rewards = { Boost = { Kind = "Luck2x", Seconds = 15 * 60 }, Candy = 30 } },
+	{ Id = "Rob1", Kind = "BaseSteal", Goal = 1, Text = "Steal a soul from another player's base", Rewards = { IncomeSeconds = 15 * 60, Essence = 1_000, Candy = 25 } },
+	{ Id = "Rare3", Kind = "DeliverRare", Goal = 3, Text = "Bring home 3 Rare or better souls", Rewards = { Orb = { Rarity = "Epic", Biome = "Best" } } },
+	{ Id = "Speed10", Kind = "BuySpeed", Goal = 10, Text = "Buy 10 Speed", Rewards = { IncomeSeconds = 10 * 60, Essence = 750 } },
+	{ Id = "Bonk3", Kind = "Bonk", Goal = 3, Text = "Knock a soul loose from 3 thieves", Rewards = { IncomeSeconds = 15 * 60, Candy = 25 } },
+	{ Id = "Candy40", Kind = "Candy", Goal = 40, Text = "Collect 40 Candy from pumpkins", Rewards = { Boost = { Kind = "Essence2x", Seconds = 15 * 60 }, Candy = 20 }, EventOnly = true },
+	{ Id = "Night5", Kind = "DeliverNight", Goal = 5, Text = "Bring home 5 souls at night", Rewards = { Boost = { Kind = "Luck2x", Seconds = 10 * 60 }, Candy = 20 } },
+}
+RewardConfig.QuestsPerDay = 3
+RewardConfig.AllQuestsBonus = { Orb = { Rarity = "Legendary", Biome = "Best" } }
+
+-- Spirit Index: +1% Essence per unique species discovered (56 at launch = +56%).
+RewardConfig.IndexBonusPerSpecies = 0.01
+
+function RewardConfig.Today(): number
+	return os.time() // 86400
+end
+
+return RewardConfig
+]]></string>
+          </Properties>
+        </Item>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Formulas</string>
           <string name="Source"><![CDATA[--[[
@@ -649,7 +781,7 @@ return Formulas
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[--[[
@@ -674,6 +806,10 @@ return Formulas
 		RedeemCode(code)
 		PetAction(action, arg1, arg2)        action: "Store"|"Place"|"Sell"|"Lock"
 		RequestLock()                        lock your base
+		ClaimDaily()                         claim today's login-streak reward
+		ClaimPlaytime(index)                 claim a session playtime gift
+		ClaimQuest(index | "Bonus")          claim a finished daily quest / the all-quests bonus
+		BuyEventItem(itemId)                 buy from the seasonal event shop with Candy
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -682,7 +818,10 @@ local RunService = game:GetService("RunService")
 local Remotes = {}
 
 Remotes.EventNames = { "Notify", "StateChanged", "HatchResult", "Announce", "Knockback", "DropOrb" }
-Remotes.FunctionNames = { "GetState", "RequestUpgrade", "RequestRebirth", "BuyPerk", "RedeemCode", "PetAction", "RequestLock" }
+Remotes.FunctionNames = {
+	"GetState", "RequestUpgrade", "RequestRebirth", "BuyPerk", "RedeemCode", "PetAction", "RequestLock",
+	"ClaimDaily", "ClaimPlaytime", "ClaimQuest", "BuyEventItem",
+}
 
 local FOLDER_NAME = "Remotes"
 
@@ -726,7 +865,7 @@ return Remotes
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Types</string>
           <string name="Source"><![CDATA[--[[
@@ -799,11 +938,11 @@ return {}
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="11">
+      <Item class="Folder" referent="13">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="14">
           <Properties>
             <string name="Name">Format</string>
             <string name="Source"><![CDATA[--[[
@@ -854,7 +993,7 @@ return Format
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="13">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">Signal</string>
             <string name="Source"><![CDATA[--[[
@@ -901,19 +1040,19 @@ return Signal
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="14">
+  <Item class="ServerScriptService" referent="16">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="15">
+    <Item class="Folder" referent="17">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Folder" referent="16">
+      <Item class="Folder" referent="18">
         <Properties>
           <string name="Name">Config</string>
         </Properties>
-        <Item class="ModuleScript" referent="17">
+        <Item class="ModuleScript" referent="19">
           <Properties>
             <string name="Name">Codes</string>
             <string name="Source"><![CDATA[--[[
@@ -955,7 +1094,7 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="Script" referent="18">
+      <Item class="Script" referent="20">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -996,6 +1135,9 @@ local ORDER = {
 	"RebirthService",
 	"CodesService",
 	"ToolService",
+	"EventService",
+	"RewardService",
+	"LeaderboardService",
 }
 
 local Services = {}
@@ -1025,11 +1167,11 @@ print("[SoulHeist] Server ready -", #ORDER, "services running")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="19">
+      <Item class="Folder" referent="21">
         <Properties>
           <string name="Name">Services</string>
         </Properties>
-        <Item class="ModuleScript" referent="20">
+        <Item class="ModuleScript" referent="22">
           <Properties>
             <string name="Name">AntiExploitService</string>
             <string name="Source"><![CDATA[--[[
@@ -1140,7 +1282,7 @@ return AntiExploitService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="21">
+        <Item class="ModuleScript" referent="23">
           <Properties>
             <string name="Name">BaseService</string>
             <string name="Source"><![CDATA[--[[
@@ -1447,7 +1589,7 @@ return BaseService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="22">
+        <Item class="ModuleScript" referent="24">
           <Properties>
             <string name="Name">BiomeService</string>
             <string name="Source"><![CDATA[--[[
@@ -1555,7 +1697,7 @@ function BiomeService:RollRarity(spawnLuck: number): string
 end
 
 -- Orb pickup --------------------------------------------------------------------------------------------
-local function attachPickupPrompt(model: Model, orb: { Rarity: string, Biome: string }, onTaken: () -> (), requiredSpeed: number?)
+local function attachPickupPrompt(model: Model, orb: { Rarity: string, Biome: string, Mutation: string? }, onTaken: () -> (), requiredSpeed: number?)
 	local primary = model.PrimaryPart
 	if not primary then
 		return
@@ -1643,8 +1785,8 @@ function BiomeService:SpawnWorldOrb(runtime: BiomeRuntime): boolean
 	return true
 end
 
-function BiomeService:SpawnDroppedOrb(orb: { Rarity: string, Biome: string }, position: Vector3)
-	local model = ModelFactory.MakeOrb(orb.Rarity, orb.Biome)
+function BiomeService:SpawnDroppedOrb(orb: { Rarity: string, Biome: string, Mutation: string? }, position: Vector3)
+	local model = ModelFactory.MakeOrb(orb.Rarity, orb.Biome, orb.Mutation)
 	model:PivotTo(CFrame.new(position + Vector3.new(0, 1, 0)))
 	model.Name = "DroppedSoul"
 	model.Parent = droppedFolder
@@ -1751,7 +1893,7 @@ return BiomeService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="23">
+        <Item class="ModuleScript" referent="25">
           <Properties>
             <string name="Name">CodesService</string>
             <string name="Source"><![CDATA[--[[
@@ -1763,10 +1905,10 @@ return BiomeService
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Format = require(Shared.Util.Format)
 local Remotes = require(Shared.Remotes)
 local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local Codes = require(script.Parent.Parent.Config.Codes)
+local Rewards = require(script.Parent.Parent.Util.Rewards)
 
 local CodesService = {}
 
@@ -1782,31 +1924,6 @@ local function normalize(code: any): string?
 		return nil
 	end
 	return cleaned
-end
-
-local function grantRewards(player: Player, rewards: any): { string }
-	local granted = {}
-	local essence = rewards.Essence or 0
-	if rewards.IncomeSeconds then
-		essence = math.max(essence, math.floor(Services.EconomyService:GetIncome(player) * rewards.IncomeSeconds))
-	end
-	if essence > 0 then
-		Services.EconomyService:AddEssence(player, essence)
-		table.insert(granted, Format.Number(essence) .. " Essence")
-	end
-	if rewards.Boost then
-		Services.EconomyService:AddBoost(player, rewards.Boost.Kind, rewards.Boost.Seconds)
-		table.insert(granted, rewards.Boost.Kind .. " (" .. Format.Time(rewards.Boost.Seconds) .. ")")
-	end
-	if rewards.Orb then
-		local biome = rewards.Orb.Biome
-		if biome == "Best" or biome == nil then
-			biome = Services.PetService:GetBestBiome(player)
-		end
-		Services.PetService:GiveOrb(player, { Rarity = rewards.Orb.Rarity, Biome = biome })
-		table.insert(granted, rewards.Orb.Rarity .. " Soul")
-	end
-	return granted
 end
 
 function CodesService:Redeem(player: Player, rawCode: any)
@@ -1832,7 +1949,7 @@ function CodesService:Redeem(player: Player, rawCode: any)
 		return { ok = false, msg = "Requires " .. entry.MinRebirths .. " rebirth(s)." }
 	end
 	data.RedeemedCodes[code] = true
-	local granted = grantRewards(player, entry.Rewards)
+	local granted = Rewards.Grant(Services, player, entry.Rewards)
 	Services.PlayerDataService:MarkDirty(player)
 	return { ok = true, msg = "Redeemed: " .. table.concat(granted, ", ") }
 end
@@ -1851,7 +1968,7 @@ return CodesService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="24">
+        <Item class="ModuleScript" referent="26">
           <Properties>
             <string name="Name">DayNightService</string>
             <string name="Source"><![CDATA[--[[
@@ -1986,19 +2103,20 @@ return DayNightService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="25">
+        <Item class="ModuleScript" referent="27">
           <Properties>
             <string name="Name">EconomyService</string>
             <string name="Source"><![CDATA[--[[
 	EconomyService
 	Passive income, multipliers, luck, timed boosts, offline earnings.
 
-	Income/sec = Σ(placed pet income) × RebirthMult × AttunementMult × SocialMult × PassMult × BoostMult
+	Income/sec = Σ(placed pet income) × RebirthMult × AttunementMult × SocialMult × PassMult × BoostMult × IndexMult
 		RebirthMult    = 1 + 0.5 × rebirths
 		AttunementMult = 1 + 0.10 × Attunement perk level
 		SocialMult     = 1 + Premium(0.10) + Group(0.10) + VIP(0.10) + 0.10 × friends in server (max 4)
 		PassMult       = 2 with the 2x Essence pass
 		BoostMult      = 2 while a 2x Essence potion is active (stacks with the pass -> 4x)
+		IndexMult      = 1 + 0.01 × unique spirits discovered (Spirit Index)
 
 	Luck = SuperLuckPass(2) × Potion(2 or 5) × (1 + 0.10 × Soul Magnet level)
 ]]
@@ -2011,6 +2129,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local MonetizationConfig = require(Shared.Config.MonetizationConfig)
 local Formulas = require(Shared.Formulas)
+local RewardConfig = require(Shared.Config.RewardConfig)
 local Format = require(Shared.Util.Format)
 
 local EconomyService = {}
@@ -2019,6 +2138,14 @@ local Services: any
 local incomeCache: { [Player]: number } = {}
 local friendsWith: { [Player]: { [Player]: boolean } } = {}
 local groupMember: { [Player]: boolean } = {}
+
+local function countKeys(map: { [any]: any }?): number
+	local count = 0
+	for _ in pairs(map or {}) do
+		count += 1
+	end
+	return count
+end
 
 -- Multipliers -----------------------------------------------------------------------------
 local function countFriendsInServer(player: Player): number
@@ -2058,8 +2185,9 @@ function EconomyService:GetMultiplierBreakdown(player: Player)
 		Social = social,
 		Pass = monetization:HasPass(player, "DoubleEssence") and 2 or 1,
 		Boost = (data.Boosts.Essence2x or 0) > 0 and 2 or 1,
+		Index = 1 + countKeys(data.Index) * RewardConfig.IndexBonusPerSpecies,
 	}
-	breakdown.Total = breakdown.Rebirth * breakdown.Attunement * breakdown.Social * breakdown.Pass * breakdown.Boost
+	breakdown.Total = breakdown.Rebirth * breakdown.Attunement * breakdown.Social * breakdown.Pass * breakdown.Boost * breakdown.Index
 	return breakdown
 end
 
@@ -2256,7 +2384,344 @@ return EconomyService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="28">
+          <Properties>
+            <string name="Name">EventService</string>
+            <string name="Source"><![CDATA[--[[
+	EventService
+	Seasonal events. Currently: the Hallow-Soul Festival (Halloween).
+
+	While active:
+	  * Spooky lighting (purple ambient, orange haze) + jack-o'-lanterns, tombstones and lanterns everywhere
+	  * Candy pumpkins spawn around the hub and inside biomes (deeper biome = more candy, 5% golden = 15 candy)
+	  * Delivering a soul home gives Candy (1 + rarity tier)
+	  * The "Haunted" mutation (x10) can roll on any hatch
+	  * Candy Shop: guaranteed Haunted souls + boosts (EventConfig.Shop)
+	Replicated: Workspace attributes EventActive, EventName, EventEndsAt; player attribute Candy.
+]]
+
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local EventConfig = require(Shared.Config.EventConfig)
+local PetConfig = require(Shared.Config.PetConfig)
+local Remotes = require(Shared.Remotes)
+local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local Rewards = require(script.Parent.Parent.Util.Rewards)
+
+local EventService = {}
+
+local Services: any
+local rng = Random.new()
+local pumpkinFolder: Folder
+local pumpkinCount = 0
+
+function EventService:IsActive(): boolean
+	return EventConfig.IsActive()
+end
+
+function EventService:AddCandy(player: Player, amount: number, countForQuests: boolean?)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or amount <= 0 then
+		return
+	end
+	data.Candy += amount
+	data.Stats.CandyEarned += amount
+	player:SetAttribute("Candy", data.Candy)
+	if countForQuests ~= false then
+		Services.RewardService:Progress(player, "Candy", amount)
+	end
+	Services.PlayerDataService:MarkDirty(player)
+end
+
+-- Called by StealService when a soul is delivered home.
+function EventService:OnDeliver(player: Player, rarityId: string)
+	if self:IsActive() then
+		self:AddCandy(player, EventConfig.DeliverCandyBase + PetConfig.GetRarity(rarityId).Order, false)
+	end
+end
+
+function EventService:BuyItem(player: Player, itemId: any)
+	if not self:IsActive() then
+		return { ok = false, msg = "The event has ended." }
+	end
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return { ok = false }
+	end
+	local item
+	for _, entry in ipairs(EventConfig.Shop) do
+		if entry.Id == itemId then
+			item = entry
+		end
+	end
+	if not item then
+		return { ok = false, msg = "Unknown item." }
+	end
+	if data.Candy < item.Cost then
+		return { ok = false, msg = "Need " .. item.Cost .. " Candy" }
+	end
+	data.Candy -= item.Cost
+	player:SetAttribute("Candy", data.Candy)
+	local rewards = {}
+	if item.Orb then
+		rewards.Orb = { Rarity = item.Orb.Rarity, Biome = "Best", Mutation = item.Orb.Mutation }
+	end
+	if item.Boost then
+		rewards.Boost = item.Boost
+	end
+	local granted = Rewards.Grant(Services, player, rewards)
+	return { ok = true, msg = "Bought: " .. table.concat(granted, ", ") }
+end
+
+-- Visual dressing ---------------------------------------------------------------------------------------
+local function makePart(props: { [string]: any }): Part
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = false
+	part.CastShadow = false
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in pairs(props) do
+		if key ~= "Parent" then
+			(part :: any)[key] = value
+		end
+	end
+	part.Parent = props.Parent
+	return part
+end
+
+-- A jack-o'-lantern model: orange ball, stem, glowing eyes + mouth, orange light.
+local function makeJackOLantern(position: Vector3, size: number, golden: boolean?): Model
+	local model = Instance.new("Model")
+	model.Name = golden and "GoldenPumpkin" or "Pumpkin"
+	local body = makePart({
+		Name = "Body", Shape = Enum.PartType.Ball, Size = Vector3.one * size,
+		Color = golden and Color3.fromRGB(255, 210, 60) or Color3.fromRGB(235, 110, 20),
+		Material = golden and Enum.Material.Neon or Enum.Material.SmoothPlastic,
+		CFrame = CFrame.new(position), Parent = model,
+	})
+	makePart({
+		Name = "Stem", Size = Vector3.new(size * 0.15, size * 0.3, size * 0.15), Color = Color3.fromRGB(70, 120, 40),
+		CFrame = CFrame.new(position + Vector3.new(0, size * 0.55, 0)), Parent = model,
+	})
+	local glow = Color3.fromRGB(255, 200, 60)
+	for _, side in ipairs({ -1, 1 }) do
+		makePart({
+			Name = "Eye", Size = Vector3.new(size * 0.18, size * 0.18, size * 0.1), Color = glow, Material = Enum.Material.Neon,
+			CFrame = CFrame.new(position + Vector3.new(side * size * 0.2, size * 0.12, -size * 0.47)) * CFrame.Angles(0, 0, math.rad(45)),
+			Parent = model,
+		})
+	end
+	makePart({
+		Name = "Mouth", Size = Vector3.new(size * 0.5, size * 0.1, size * 0.1), Color = glow, Material = Enum.Material.Neon,
+		CFrame = CFrame.new(position + Vector3.new(0, -size * 0.18, -size * 0.46)), Parent = model,
+	})
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 140, 40)
+	light.Range = size * 4
+	light.Brightness = 1.5
+	light.Parent = body
+	model.PrimaryPart = body
+	return model
+end
+
+local function makeTombstone(position: Vector3, parent: Instance)
+	local height = rng:NextNumber(3, 5)
+	makePart({
+		Name = "Tombstone", Size = Vector3.new(2.6, height, 0.8), Color = Color3.fromRGB(110, 110, 120),
+		Material = Enum.Material.Slate, CanCollide = true,
+		CFrame = CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), math.rad(rng:NextNumber(-8, 8))),
+		Parent = parent,
+	})
+end
+
+local function groundAt(x: number, z: number, top: number, depth: number): Vector3?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { pumpkinFolder }
+	local result = Workspace:Raycast(Vector3.new(x, top, z), Vector3.new(0, -depth, 0), params)
+	return result and result.Position or nil
+end
+
+-- Random point on the ground inside a box-shaped part (zone).
+local function randomPointIn(zone: BasePart): Vector3?
+	local half = zone.Size / 2
+	local localPoint = Vector3.new(rng:NextNumber(-half.X * 0.9, half.X * 0.9), half.Y, rng:NextNumber(-half.Z * 0.9, half.Z * 0.9))
+	local world = zone.CFrame:PointToWorldSpace(localPoint)
+	return groundAt(world.X, world.Z, world.Y + 20, zone.Size.Y + 40)
+end
+
+local function spawnAreas(): { { Zone: BasePart, Bonus: number } }
+	local areas = {}
+	local hub = Workspace:FindFirstChild("Hub")
+	local hubGround = hub and hub:FindFirstChild("HubGround")
+	if hubGround and hubGround:IsA("BasePart") then
+		table.insert(areas, { Zone = hubGround, Bonus = 0 })
+	end
+	for _, runtime in ipairs(Services.BiomeService:GetRuntimes()) do
+		table.insert(areas, { Zone = runtime.Zone, Bonus = runtime.Config.Order - 1 })
+	end
+	return areas
+end
+
+local function decorate()
+	if Workspace:FindFirstChild("HalloweenDecor") then
+		return -- you built your own decorations
+	end
+	local decor = Instance.new("Folder")
+	decor.Name = "HalloweenDecor"
+	decor.Parent = Workspace
+
+	-- Jack-o'-lanterns at every base corner
+	local bases = Workspace:FindFirstChild("Bases")
+	if bases then
+		for _, base in ipairs(bases:GetChildren()) do
+			local zone = base:FindFirstChild("Zone")
+			if zone and zone:IsA("BasePart") then
+				for _, corner in ipairs({ Vector3.new(1, 0, 1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, -1) }) do
+					local x = zone.Position.X + corner.X * (zone.Size.X / 2 - 2)
+					local z = zone.Position.Z + corner.Z * (zone.Size.Z / 2 - 2)
+					local ground = groundAt(x, z, zone.Position.Y + zone.Size.Y / 2 + 20, zone.Size.Y + 40)
+					if ground then
+						makeJackOLantern(ground + Vector3.new(0, 1.6, 0), 3.2).Parent = decor
+					end
+				end
+			end
+		end
+	end
+
+	-- Tombstones + lanterns scattered through every area
+	for _, area in ipairs(spawnAreas()) do
+		for _ = 1, 14 do
+			local point = randomPointIn(area.Zone)
+			if point then
+				if rng:NextNumber() < 0.6 then
+					makeTombstone(point, decor)
+				else
+					makeJackOLantern(point + Vector3.new(0, 1.3, 0), rng:NextNumber(2.2, 3.4)).Parent = decor
+				end
+			end
+		end
+	end
+end
+
+local function applyLighting()
+	local cfg = EventConfig.Lighting
+	Lighting.OutdoorAmbient = cfg.OutdoorAmbient
+	Lighting.FogColor = cfg.FogColor
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+	atmosphere.Density = cfg.AtmosphereDensity
+	atmosphere.Color = cfg.AtmosphereColor
+	atmosphere.Decay = Color3.fromRGB(70, 30, 90)
+	atmosphere.Glare = 0.4
+	atmosphere.Haze = 2
+	atmosphere.Parent = Lighting
+	local correction: ColorCorrectionEffect = (Lighting:FindFirstChild("EventTint") :: any) or Instance.new("ColorCorrectionEffect")
+	correction.Name = "EventTint"
+	correction.TintColor = cfg.Tint
+	correction.Saturation = 0.15
+	correction.Parent = Lighting
+end
+
+-- Candy pumpkins ----------------------------------------------------------------------------------------
+local function spawnPumpkin(areas: { { Zone: BasePart, Bonus: number } })
+	if #areas == 0 then
+		return
+	end
+	local area = areas[rng:NextInteger(1, #areas)]
+	local point = randomPointIn(area.Zone)
+	if not point then
+		return
+	end
+	local golden = rng:NextNumber() < EventConfig.GoldenPumpkinChance
+	local model = makeJackOLantern(point + Vector3.new(0, 1.2, 0), golden and 2.6 or 2.2, golden)
+	local candy = golden and EventConfig.GoldenPumpkinCandy
+		or rng:NextInteger(EventConfig.PumpkinCandy.Min, EventConfig.PumpkinCandy.Max) + area.Bonus
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Collect Candy"
+	prompt.ObjectText = golden and "Golden Pumpkin" or "Pumpkin"
+	prompt.HoldDuration = 0.25
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = model.PrimaryPart
+	local taken = false
+	prompt.Triggered:Connect(function(player)
+		if taken or not RateLimiter.Check(player, "Pumpkin", 0.25) then
+			return
+		end
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local body = model.PrimaryPart
+		if not root or not body or (root.Position - body.Position).Magnitude > 14 then
+			return
+		end
+		taken = true
+		EventService:AddCandy(player, candy, true)
+		Services.PlayerDataService:Notify(player, "+" .. candy .. " Candy!", golden and "warning" or "success")
+		model:Destroy()
+	end)
+	model.Destroying:Connect(function()
+		pumpkinCount -= 1
+	end)
+	pumpkinCount += 1
+	model.Parent = pumpkinFolder
+	-- Pumpkins rot after a while so they keep moving around
+	task.delay(180, function()
+		if model.Parent then
+			model:Destroy()
+		end
+	end)
+end
+
+-- Lifecycle ------------------------------------------------------------------------------------------------
+function EventService:Init(services)
+	Services = services
+end
+
+function EventService:Start()
+	Remotes.Function("BuyEventItem").OnServerInvoke = function(player, itemId)
+		if not RateLimiter.Check(player, "EventShop", 0.3) then
+			return { ok = false, msg = "Slow down!" }
+		end
+		local result = self:BuyItem(player, itemId)
+		Services.PlayerDataService:MarkDirty(player)
+		return result
+	end
+
+	Workspace:SetAttribute("EventActive", self:IsActive())
+	Workspace:SetAttribute("EventName", EventConfig.Name)
+	Workspace:SetAttribute("EventEndsAt", EventConfig.EndsAt)
+	if not self:IsActive() then
+		return
+	end
+
+	pumpkinFolder = Instance.new("Folder")
+	pumpkinFolder.Name = "CandyPumpkins"
+	pumpkinFolder.Parent = Workspace
+
+	applyLighting()
+	task.spawn(decorate)
+
+	task.spawn(function()
+		local areas = spawnAreas()
+		while self:IsActive() do
+			if pumpkinCount < EventConfig.MaxPumpkins then
+				spawnPumpkin(areas)
+			end
+			task.wait(EventConfig.PumpkinRespawnSeconds)
+		end
+		Workspace:SetAttribute("EventActive", false)
+		Remotes.Event("Announce"):FireAllClients("The " .. EventConfig.Name .. " has ended. See you next year!", Color3.fromRGB(255, 140, 40))
+	end)
+end
+
+return EventService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="29">
           <Properties>
             <string name="Name">GuardianService</string>
             <string name="Source"><![CDATA[--[[
@@ -2487,7 +2952,173 @@ return GuardianService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="30">
+          <Properties>
+            <string name="Name">LeaderboardService</string>
+            <string name="Source"><![CDATA[--[[
+	LeaderboardService
+	Global top-10 boards (OrderedDataStore) for Lifetime Essence, Steals and Rebirths.
+	Boards are built in the hub automatically, or use your own: Workspace.Leaderboards.<Essence|Steals|Rebirths>
+	(a Part; the board UI is put on its Front face).
+
+	OrderedDataStores only hold integers < 2^63, so Essence is stored as log10(x) * 10,000 and decoded.
+	Writes every 2 minutes per player, reads every 2 minutes. Fails quietly in Studio without API access.
+]]
+
+local Players = game:GetService("Players")
+local DataStoreService = game:GetService("DataStoreService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Format = require(Shared.Util.Format)
+
+local LeaderboardService = {}
+
+local Services: any
+local UPDATE_INTERVAL = 120
+local TOP = 10
+
+local BOARDS = {
+	{
+		Key = "Essence", Title = "Richest Soul Thieves", Store = "LB_Essence_v1",
+		Encode = function(data) return math.floor(math.log10(data.Stats.TotalEssence + 1) * 10_000) end,
+		Decode = function(value) return Format.Number(10 ^ (value / 10_000) - 1) end,
+		Color = Color3.fromRGB(120, 255, 200),
+	},
+	{
+		Key = "Steals", Title = "Most Souls Stolen", Store = "LB_Steals_v1",
+		Encode = function(data) return data.Stats.Steals end,
+		Decode = function(value) return Format.Number(value) end,
+		Color = Color3.fromRGB(255, 140, 60),
+	},
+	{
+		Key = "Rebirths", Title = "Most Rebirths", Store = "LB_Rebirths_v1",
+		Encode = function(data) return data.Rebirths end,
+		Decode = function(value) return tostring(value) end,
+		Color = Color3.fromRGB(230, 120, 255),
+	},
+}
+
+local nameCache: { [number]: string } = {}
+
+local function getName(userId: number): string
+	if nameCache[userId] then
+		return nameCache[userId]
+	end
+	local ok, name = pcall(Players.GetNameFromUserIdAsync, Players, userId)
+	nameCache[userId] = ok and name or ("Player" .. userId)
+	return nameCache[userId]
+end
+
+local function buildBoardPart(board, index: number, folder: Instance): BasePart
+	local part = Instance.new("Part")
+	part.Name = board.Key
+	part.Anchored = true
+	part.Size = Vector3.new(16, 20, 1)
+	part.Color = Color3.fromRGB(30, 20, 45)
+	part.Material = Enum.Material.SmoothPlastic
+	-- In the generated hub: three boards between the bases and the first biome, facing the bases.
+	part.CFrame = CFrame.new((index - 2) * 22, 11, 70)
+	part.Parent = folder
+	return part
+end
+
+local function buildGui(board, part: BasePart)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Board"
+	gui.Face = Enum.NormalId.Front
+	gui.CanvasSize = Vector2.new(400, 500)
+	gui.LightInfluence = 0
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.new(1, 0, 0, 60)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = board.Color
+	title.Text = board.Title
+	title.Parent = gui
+	for rank = 1, TOP do
+		local row = Instance.new("TextLabel")
+		row.Name = "Row" .. rank
+		row.Position = UDim2.new(0, 10, 0, 60 + (rank - 1) * 43)
+		row.Size = UDim2.new(1, -20, 0, 40)
+		row.BackgroundTransparency = 1
+		row.Font = Enum.Font.FredokaOne
+		row.TextScaled = true
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextColor3 = rank <= 3 and Color3.fromRGB(255, 215, 80) or Color3.new(1, 1, 1)
+		row.Text = rank .. ". ..."
+		row.Parent = gui
+	end
+	gui.Parent = part
+	return gui
+end
+
+function LeaderboardService:Init(services)
+	Services = services
+end
+
+function LeaderboardService:Start()
+	local folder = Workspace:FindFirstChild("Leaderboards")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "Leaderboards"
+		folder.Parent = Workspace
+	end
+
+	local runtimes = {}
+	for index, board in ipairs(BOARDS) do
+		local part = folder:FindFirstChild(board.Key)
+		if not (part and part:IsA("BasePart")) then
+			part = buildBoardPart(board, index, folder)
+		end
+		local ok, store = pcall(DataStoreService.GetOrderedDataStore, DataStoreService, board.Store)
+		table.insert(runtimes, { Board = board, Gui = buildGui(board, part :: BasePart), Store = ok and store or nil })
+	end
+
+	task.spawn(function()
+		task.wait(10)
+		while true do
+			for _, runtime in ipairs(runtimes) do
+				local store = runtime.Store
+				if store then
+					-- Write everyone currently in the server
+					for player, data in pairs(Services.PlayerDataService:GetAllLoaded()) do
+						local value = runtime.Board.Encode(data)
+						if value and value > 0 then
+							pcall(store.SetAsync, store, tostring(player.UserId), value)
+						end
+					end
+					-- Read top 10
+					local ok, pages = pcall(store.GetSortedAsync, store, false, TOP)
+					if ok and pages then
+						local entries = pages:GetCurrentPage()
+						for rank = 1, TOP do
+							local label = runtime.Gui:FindFirstChild("Row" .. rank) :: TextLabel
+							local entry = entries[rank]
+							if entry then
+								label.Text = string.format("%d. %s - %s", rank, getName(tonumber(entry.key) or 0), runtime.Board.Decode(entry.value))
+							else
+								label.Text = rank .. ". -"
+							end
+						end
+					else
+						(runtime.Gui:FindFirstChild("Row1") :: TextLabel).Text = "Leaderboard offline (Studio?)"
+					end
+				end
+			end
+			task.wait(UPDATE_INTERVAL)
+		end
+	end)
+end
+
+return LeaderboardService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="31">
           <Properties>
             <string name="Name">MonetizationService</string>
             <string name="Source"><![CDATA[--[[
@@ -2683,6 +3314,16 @@ local ProductHandlers: { [string]: (Player, any) -> boolean } = {
 	end,
 	LegendaryOrb = grantOrb("Legendary"),
 	MythicOrb = grantOrb("Mythic"),
+	CandySmall = function(player)
+		Services.EventService:AddCandy(player, Effects.CandySmall, false)
+		Services.PlayerDataService:Notify(player, "+" .. Effects.CandySmall .. " Candy!", "success")
+		return true
+	end,
+	CandyLarge = function(player)
+		Services.EventService:AddCandy(player, Effects.CandyLarge, false)
+		Services.PlayerDataService:Notify(player, "+" .. Effects.CandyLarge .. " Candy!", "success")
+		return true
+	end,
 	ServerEclipse = function(player)
 		Services.DayNightService:StartEclipse(Effects.EclipseSeconds, player.DisplayName)
 		return true
@@ -2781,7 +3422,7 @@ return MonetizationService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="32">
           <Properties>
             <string name="Name">PetService</string>
             <string name="Source"><![CDATA[--[[
@@ -2915,7 +3556,7 @@ function PetService:RenderSlot(player: Player, index: number)
 
 	local model: Model
 	if slot.Type == "Orb" then
-		model = ModelFactory.MakeOrb(slot.Rarity, slot.Biome)
+		model = ModelFactory.MakeOrb(slot.Rarity, slot.Biome, slot.Mutation)
 		model:PivotTo(pedestalTop(pedestal, 2.5))
 		local info = model.PrimaryPart and model.PrimaryPart:FindFirstChild("Info")
 		if info then
@@ -2977,7 +3618,7 @@ function PetService:GetHatchDuration(player: Player, rarityId: string, biomeId: 
 end
 
 -- Places an orb on the first free pedestal. Returns the slot index or nil if full.
-function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: string }): number?
+function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: string, Mutation: string? }): number?
 	local data = Services.PlayerDataService:GetData(player)
 	local index = self:FindFreeSlot(player)
 	if not data or not index then
@@ -2988,6 +3629,7 @@ function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: strin
 		Type = "Orb",
 		Rarity = orb.Rarity,
 		Biome = orb.Biome,
+		Mutation = orb.Mutation, -- pre-set mutation (event shop souls); nil = rolled at hatch
 		HatchEnd = os.time() + duration,
 		HatchDuration = duration,
 	}
@@ -2997,7 +3639,7 @@ function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: strin
 end
 
 -- Removes an incubating orb (used by stealing). Returns the orb data or nil.
-function PetService:TakeOrb(player: Player, index: number): { Rarity: string, Biome: string }?
+function PetService:TakeOrb(player: Player, index: number): { Rarity: string, Biome: string, Mutation: string? }?
 	local data = Services.PlayerDataService:GetData(player)
 	local slot = data and data.Slots[tostring(index)]
 	if not slot or slot.Type ~= "Orb" then
@@ -3006,11 +3648,11 @@ function PetService:TakeOrb(player: Player, index: number): { Rarity: string, Bi
 	data.Slots[tostring(index)] = nil
 	self:RenderSlot(player, index)
 	Services.PlayerDataService:MarkDirty(player)
-	return { Rarity = slot.Rarity, Biome = slot.Biome }
+	return { Rarity = slot.Rarity, Biome = slot.Biome, Mutation = slot.Mutation }
 end
 
 -- Gives an orb: placed now if a pedestal is free, otherwise queued (purchases/codes never get lost).
-function PetService:GiveOrb(player: Player, orb: { Rarity: string, Biome: string }): boolean
+function PetService:GiveOrb(player: Player, orb: { Rarity: string, Biome: string, Mutation: string? }): boolean
 	if self:PlaceOrb(player, orb) then
 		return true
 	end
@@ -3046,6 +3688,7 @@ local function rollMutation(luck: number): string
 		local mutation = PetConfig.Mutations[id]
 		local allowed = (not mutation.NightOnly or dayNight:IsNight() or dayNight:IsEclipse())
 			and (not mutation.EclipseOnly or dayNight:IsEclipse())
+			and (not mutation.EventOnly or Services.EventService:IsActive())
 		if allowed and rng:NextNumber() < math.min(mutation.Chance * mutationLuck, 0.5) then
 			return id
 		end
@@ -3069,7 +3712,7 @@ function PetService:Hatch(player: Player, index: number)
 			ascended = true
 		end
 	end
-	local mutation = rollMutation(luck)
+	local mutation = if slot.Mutation and PetConfig.Mutations[slot.Mutation] then slot.Mutation else rollMutation(luck)
 	local biome = BiomeConfig.Get(slot.Biome)
 
 	local id = tostring(data.NextPetId)
@@ -3085,6 +3728,12 @@ function PetService:Hatch(player: Player, index: number)
 	}
 	data.Slots[tostring(index)] = { Type = "Pet", PetId = id }
 	data.Stats.Hatched += 1
+	local species = data.Pets[id].Species
+	local discovered = not data.Index[species]
+	if discovered then
+		data.Index[species] = true -- Spirit Index: +1% Essence per species
+	end
+	Services.RewardService:Progress(player, "Hatch", 1)
 
 	self:RenderSlot(player, index)
 	Services.EconomyService:Recalculate(player)
@@ -3098,6 +3747,7 @@ function PetService:Hatch(player: Player, index: number)
 		Biome = pet.Biome,
 		Income = income,
 		Ascended = ascended,
+		NewDiscovery = discovered,
 	})
 	if PetConfig.GetRarity(pet.Rarity).Order >= 6 or (mutation ~= "None" and PetConfig.GetMutation(mutation).Mult >= 15) then
 		local label = (mutation ~= "None" and (mutation .. " ") or "") .. pet.Rarity .. " " .. pet.Species
@@ -3265,7 +3915,7 @@ return PetService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="33">
           <Properties>
             <string name="Name">PlayerDataService</string>
             <string name="Source"><![CDATA[--[[
@@ -3328,7 +3978,14 @@ local DEFAULT_DATA = {
 	LastRobbed = nil,
 	LastOnline = 0,
 	LastIncome = 0,
-	Stats = { TotalEssence = 0, Steals = 0, BaseSteals = 0, TimesRobbed = 0, Hatched = 0, PlayTime = 0, RobuxSpent = 0 },
+	Candy = 0, -- seasonal event currency (kept between events)
+	Daily = { Streak = 0, LastClaimDay = 0 },
+	Quests = { Day = 0, List = {}, BonusClaimed = false },
+	Index = {}, -- [species] = true for every spirit ever hatched
+	Stats = {
+		TotalEssence = 0, Steals = 0, BaseSteals = 0, TimesRobbed = 0, Hatched = 0, PlayTime = 0, RobuxSpent = 0,
+		CandyEarned = 0, Bonks = 0, DaysPlayed = 0,
+	},
 }
 
 type Profile = {
@@ -3511,6 +4168,7 @@ function PlayerDataService:Replicate(player: Player)
 	player:SetAttribute("Pedestals", data.Pedestals)
 	player:SetAttribute("Rebirths", data.Rebirths)
 	player:SetAttribute("RebirthTokens", data.RebirthTokens)
+	player:SetAttribute("Candy", data.Candy)
 	local stats = player:FindFirstChild("leaderstats")
 	if stats then
 		(stats :: any).Essence.Value = Format.Number(data.Essence);
@@ -3548,6 +4206,11 @@ function PlayerDataService:BuildSnapshot(player: Player)
 		Income = Services.EconomyService:GetIncome(player),
 		Luck = Services.EconomyService:GetLuck(player),
 		Stats = data.Stats,
+		Candy = data.Candy,
+		Index = data.Index,
+		Rewards = Services.RewardService:GetSnapshot(player),
+		EventActive = Services.EventService:IsActive(),
+		ShieldUntil = data.ShieldUntil,
 		ServerTime = os.time(),
 	}
 end
@@ -3730,7 +4393,7 @@ return PlayerDataService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">RebirthService</string>
             <string name="Source"><![CDATA[--[[
@@ -3886,7 +4549,274 @@ return RebirthService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="35">
+          <Properties>
+            <string name="Name">RewardService</string>
+            <string name="Source"><![CDATA[--[[
+	RewardService
+	Reasons to come back every day and to keep playing:
+	  * Daily login streak (7-day cycle, resets if you miss a UTC day)
+	  * Playtime gifts (unlock after N minutes in the current session)
+	  * Daily quests (3 per day, chosen per player, + a bonus for finishing all 3)
+
+	Other services report progress with RewardService:Progress(player, kind, amount).
+	Kinds: Deliver, DeliverRare, DeliverNight, BaseSteal, Hatch, BuySpeed, Bonk, Candy
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local RewardConfig = require(Shared.Config.RewardConfig)
+local Remotes = require(Shared.Remotes)
+local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
+local Rewards = require(script.Parent.Parent.Util.Rewards)
+
+local RewardService = {}
+
+local Services: any
+local sessionStart: { [Player]: number } = {}
+local playtimeClaimed: { [Player]: { [number]: boolean } } = {}
+
+local questById = {}
+for _, quest in ipairs(RewardConfig.QuestPool) do
+	questById[quest.Id] = quest
+end
+
+-- Daily streak ---------------------------------------------------------------------------------------
+local function dailyState(data: any): (boolean, number)
+	local today = RewardConfig.Today()
+	local canClaim = data.Daily.LastClaimDay < today
+	local nextDay
+	if data.Daily.LastClaimDay == today - 1 or data.Daily.LastClaimDay == today then
+		nextDay = data.Daily.Streak % #RewardConfig.Daily + 1
+	else
+		nextDay = 1 -- streak broken (or first time)
+	end
+	if not canClaim then
+		nextDay = (data.Daily.Streak - 1) % #RewardConfig.Daily + 1 -- today's (already claimed) day
+	end
+	return canClaim, nextDay
+end
+
+function RewardService:ClaimDaily(player: Player)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return { ok = false, msg = "Data not loaded yet." }
+	end
+	local canClaim, day = dailyState(data)
+	if not canClaim then
+		return { ok = false, msg = "Come back tomorrow for your next gift!" }
+	end
+	local today = RewardConfig.Today()
+	local continued = data.Daily.LastClaimDay == today - 1
+	data.Daily.Streak = continued and data.Daily.Streak + 1 or 1
+	data.Daily.LastClaimDay = today
+	data.Stats.DaysPlayed += 1
+	local granted = Rewards.Grant(Services, player, RewardConfig.Daily[day].Rewards)
+	Services.PlayerDataService:MarkDirty(player)
+	return { ok = true, msg = string.format("Day %d reward: %s (streak %d)", day, table.concat(granted, ", "), data.Daily.Streak) }
+end
+
+-- Playtime gifts ---------------------------------------------------------------------------------------
+function RewardService:ClaimPlaytime(player: Player, index: any)
+	index = tonumber(index)
+	local gift = index and RewardConfig.Playtime[index]
+	local start = sessionStart[player]
+	if not gift or not start then
+		return { ok = false }
+	end
+	local claimed = playtimeClaimed[player]
+	if claimed[index] then
+		return { ok = false, msg = "Already claimed." }
+	end
+	if os.clock() - start < gift.Minutes * 60 then
+		return { ok = false, msg = "Not ready yet!" }
+	end
+	claimed[index] = true
+	local granted = Rewards.Grant(Services, player, gift.Rewards)
+	return { ok = true, msg = "Gift: " .. table.concat(granted, ", ") }
+end
+
+-- Daily quests ------------------------------------------------------------------------------------------
+local function ensureQuests(player: Player, data: any)
+	local today = RewardConfig.Today()
+	if data.Quests.Day == today and #data.Quests.List > 0 then
+		return
+	end
+	local eventActive = Services.EventService:IsActive()
+	local pool = {}
+	for _, quest in ipairs(RewardConfig.QuestPool) do
+		if not quest.EventOnly or eventActive then
+			table.insert(pool, quest)
+		end
+	end
+	-- Deterministic per player per day, so rejoining doesn't reroll.
+	local rng = Random.new(today * 7919 + player.UserId)
+	local list = {}
+	local usedKinds = {}
+	while #list < RewardConfig.QuestsPerDay and #pool > 0 do
+		local quest = table.remove(pool, rng:NextInteger(1, #pool))
+		if not usedKinds[quest.Kind] then
+			usedKinds[quest.Kind] = true
+			table.insert(list, { Id = quest.Id, Progress = 0, Claimed = false })
+		end
+	end
+	data.Quests = { Day = today, List = list, BonusClaimed = false }
+end
+
+function RewardService:Progress(player: Player, kind: string, amount: number?)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return
+	end
+	ensureQuests(player, data)
+	local changed = false
+	for _, entry in ipairs(data.Quests.List) do
+		local quest = questById[entry.Id]
+		if quest and quest.Kind == kind and entry.Progress < quest.Goal then
+			entry.Progress = math.min(quest.Goal, entry.Progress + (amount or 1))
+			changed = true
+			if entry.Progress >= quest.Goal then
+				Services.PlayerDataService:Notify(player, "Quest complete: " .. quest.Text .. "! Claim it in Gifts.", "success")
+			end
+		end
+	end
+	if changed then
+		Services.PlayerDataService:MarkDirty(player)
+	end
+end
+
+function RewardService:ClaimQuest(player: Player, which: any)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return { ok = false }
+	end
+	ensureQuests(player, data)
+	if which == "Bonus" then
+		if data.Quests.BonusClaimed then
+			return { ok = false, msg = "Bonus already claimed today." }
+		end
+		for _, entry in ipairs(data.Quests.List) do
+			if not entry.Claimed then
+				return { ok = false, msg = "Claim all 3 quests first!" }
+			end
+		end
+		data.Quests.BonusClaimed = true
+		local granted = Rewards.Grant(Services, player, RewardConfig.AllQuestsBonus)
+		return { ok = true, msg = "All quests bonus: " .. table.concat(granted, ", ") }
+	end
+	local index = tonumber(which)
+	local entry = index and data.Quests.List[index]
+	local quest = entry and questById[entry.Id]
+	if not entry or not quest then
+		return { ok = false }
+	end
+	if entry.Claimed then
+		return { ok = false, msg = "Already claimed." }
+	end
+	if entry.Progress < quest.Goal then
+		return { ok = false, msg = "Not finished yet." }
+	end
+	entry.Claimed = true
+	local granted = Rewards.Grant(Services, player, quest.Rewards)
+	return { ok = true, msg = "Quest reward: " .. table.concat(granted, ", ") }
+end
+
+-- Snapshot for the UI ---------------------------------------------------------------------------------------
+function RewardService:GetSnapshot(player: Player)
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return nil
+	end
+	ensureQuests(player, data)
+	local canClaim, day = dailyState(data)
+	local quests = {}
+	for i, entry in ipairs(data.Quests.List) do
+		local quest = questById[entry.Id]
+		if quest then
+			quests[i] = { Text = quest.Text, Goal = quest.Goal, Progress = entry.Progress, Claimed = entry.Claimed }
+		end
+	end
+	local claimed = {}
+	for index in pairs(playtimeClaimed[player] or {}) do
+		table.insert(claimed, index)
+	end
+	return {
+		DailyCanClaim = canClaim,
+		DailyDay = day,
+		DailyStreak = data.Daily.Streak,
+		SessionSeconds = sessionStart[player] and math.floor(os.clock() - sessionStart[player]) or 0,
+		PlaytimeClaimed = claimed,
+		Quests = quests,
+		QuestBonusClaimed = data.Quests.BonusClaimed,
+		NextResetIn = (RewardConfig.Today() + 1) * 86400 - os.time(),
+	}
+end
+
+-- Lifecycle ------------------------------------------------------------------------------------------------
+function RewardService:Init(services)
+	Services = services
+	Services.PlayerDataService.ProfileLoaded:Connect(function(player, data)
+		sessionStart[player] = os.clock()
+		playtimeClaimed[player] = {}
+		ensureQuests(player, data)
+		local canClaim = dailyState(data)
+		if canClaim then
+			Services.PlayerDataService:Notify(player, "Your daily gift is ready! Open Gifts to claim it.", "warning")
+		end
+	end)
+end
+
+function RewardService:Start()
+	Players.PlayerRemoving:Connect(function(player)
+		sessionStart[player] = nil
+		playtimeClaimed[player] = nil
+	end)
+
+	local function guarded(key: string, fn: (Player, any) -> any)
+		return function(player: Player, arg: any)
+			if not RateLimiter.Check(player, key, 0.4) then
+				return { ok = false, msg = "Slow down!" }
+			end
+			local result = fn(player, arg)
+			Services.PlayerDataService:MarkDirty(player)
+			return result
+		end
+	end
+	Remotes.Function("ClaimDaily").OnServerInvoke = guarded("ClaimDaily", function(player)
+		return self:ClaimDaily(player)
+	end)
+	Remotes.Function("ClaimPlaytime").OnServerInvoke = guarded("ClaimPlaytime", function(player, index)
+		return self:ClaimPlaytime(player, index)
+	end)
+	Remotes.Function("ClaimQuest").OnServerInvoke = guarded("ClaimQuest", function(player, which)
+		return self:ClaimQuest(player, which)
+	end)
+
+	-- Tell players when a playtime gift unlocks.
+	task.spawn(function()
+		while true do
+			task.wait(15)
+			for player, start in pairs(sessionStart) do
+				local minutes = (os.clock() - start) / 60
+				for index, gift in ipairs(RewardConfig.Playtime) do
+					local claimed = playtimeClaimed[player]
+					if claimed and not claimed[index] and minutes >= gift.Minutes and minutes < gift.Minutes + 0.25 then
+						Services.PlayerDataService:Notify(player, "Playtime gift unlocked: " .. gift.Label .. "! Open Gifts.", "warning")
+						Services.PlayerDataService:MarkDirty(player)
+					end
+				end
+			end
+		end
+	end)
+end
+
+return RewardService
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="36">
           <Properties>
             <string name="Name">StealService</string>
             <string name="Source"><![CDATA[--[[
@@ -3917,7 +4847,7 @@ local RateLimiter = require(script.Parent.Parent.Util.RateLimiter)
 local ModelFactory = require(script.Parent.Parent.World.ModelFactory)
 
 export type Carried = {
-	Orb: { Rarity: string, Biome: string },
+	Orb: { Rarity: string, Biome: string, Mutation: string? },
 	Visual: Model?,
 	StolenFromUserId: number?,
 }
@@ -4030,7 +4960,7 @@ local function setThiefHighlight(player: Player, on: boolean)
 	end
 end
 
-function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: string }, stolenFromUserId: number?): boolean
+function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: string, Mutation: string? }, stolenFromUserId: number?): boolean
 	local root = getRoot(player)
 	local humanoid = getHumanoid(player)
 	if not root or not humanoid or humanoid.Health <= 0 or carrying[player] then
@@ -4040,7 +4970,7 @@ function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: strin
 		return false
 	end
 
-	local visual = ModelFactory.MakeOrb(orb.Rarity, orb.Biome)
+	local visual = ModelFactory.MakeOrb(orb.Rarity, orb.Biome, orb.Mutation)
 	visual:PivotTo(root.CFrame * CFrame.new(0, 4.5, 0))
 	for _, part in ipairs(visual:GetDescendants()) do
 		if part:IsA("BasePart") then
@@ -4056,7 +4986,7 @@ function StealService:PickUp(player: Player, orb: { Rarity: string, Biome: strin
 	visual.Name = "CarriedSoul"
 	visual.Parent = player.Character
 
-	carrying[player] = { Orb = { Rarity = orb.Rarity, Biome = orb.Biome }, Visual = visual, StolenFromUserId = stolenFromUserId }
+	carrying[player] = { Orb = { Rarity = orb.Rarity, Biome = orb.Biome, Mutation = orb.Mutation }, Visual = visual, StolenFromUserId = stolenFromUserId }
 	player:SetAttribute("CarryingRarity", orb.Rarity)
 	player:SetAttribute("CarryingBiome", orb.Biome)
 	if stolenFromUserId then
@@ -4174,9 +5104,19 @@ local function tryDeliver(player: Player)
 	end
 	local data = Services.PlayerDataService:GetData(player)
 	data.Stats.Steals += 1
+	local rewards = Services.RewardService
+	rewards:Progress(player, "Deliver", 1)
+	if PetConfig.GetRarity(carried.Orb.Rarity).Order >= 3 then
+		rewards:Progress(player, "DeliverRare", 1)
+	end
+	if Services.DayNightService:IsNight() then
+		rewards:Progress(player, "DeliverNight", 1)
+	end
 	if carried.StolenFromUserId then
 		data.Stats.BaseSteals += 1
+		rewards:Progress(player, "BaseSteal", 1)
 	end
+	Services.EventService:OnDeliver(player, carried.Orb.Rarity)
 	StealService:Clear(player)
 	local biome = BiomeConfig.Get(carried.Orb.Biome)
 	local hatchSeconds = Services.PetService:GetHatchDuration(player, carried.Orb.Rarity, carried.Orb.Biome)
@@ -4258,7 +5198,7 @@ return StealService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="37">
           <Properties>
             <string name="Name">ToolService</string>
             <string name="Source"><![CDATA[--[[
@@ -4329,6 +5269,11 @@ local function onSwing(player: Player, isScythe: boolean)
 		Services.StealService:ApplySlow(victim, 0.3, stats.StunSeconds)
 		Services.StealService:Knockback(victim, root.Position, stats.Knockback)
 		Services.PlayerDataService:Notify(player, "You knocked " .. victim.DisplayName .. "'s soul loose! Grab it!", "success")
+		local data = Services.PlayerDataService:GetData(player)
+		if data then
+			data.Stats.Bonks += 1
+		end
+		Services.RewardService:Progress(player, "Bonk", 1)
 	else
 		Services.StealService:Knockback(victim, root.Position, stats.Knockback * 0.4)
 	end
@@ -4389,7 +5334,7 @@ return ToolService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">UpgradeService</string>
             <string name="Source"><![CDATA[--[[
@@ -4435,6 +5380,7 @@ local function buySpeed(player: Player, data: any, amount: any)
 	end
 	data.Speed += count
 	Services.StealService:RefreshWalkSpeed(player)
+	Services.RewardService:Progress(player, "BuySpeed", count)
 	return { ok = true, msg = string.format("+%d Speed (now %d)", count, data.Speed) }
 end
 
@@ -4516,11 +5462,11 @@ return UpgradeService
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="34">
+      <Item class="Folder" referent="39">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">RateLimiter</string>
             <string name="Source"><![CDATA[--[[
@@ -4558,12 +5504,67 @@ return RateLimiter
 ]]></string>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="41">
+          <Properties>
+            <string name="Name">Rewards</string>
+            <string name="Source"><![CDATA[--[[
+	Rewards
+	One reward format for codes, daily streak, playtime gifts, quests and the event shop.
+		{ Essence, IncomeSeconds, Boost = {Kind, Seconds}, Orb = {Rarity, Biome = "Best"|id, Mutation?}, Candy }
+	Rewards.Grant(Services, player, rewards) -> { "500 Essence", "Epic Soul", ... } (human-readable list)
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Format = require(Shared.Util.Format)
+
+local Rewards = {}
+
+function Rewards.Grant(Services: any, player: Player, rewards: any): { string }
+	local granted = {}
+	if type(rewards) ~= "table" then
+		return granted
+	end
+	local essence = rewards.Essence or 0
+	if rewards.IncomeSeconds then
+		essence = math.max(essence, math.floor(Services.EconomyService:GetIncome(player) * rewards.IncomeSeconds))
+	end
+	if essence > 0 then
+		Services.EconomyService:AddEssence(player, essence)
+		table.insert(granted, Format.Number(essence) .. " Essence")
+	end
+	if rewards.Boost then
+		Services.EconomyService:AddBoost(player, rewards.Boost.Kind, rewards.Boost.Seconds)
+		table.insert(granted, rewards.Boost.Kind .. " (" .. Format.Time(rewards.Boost.Seconds) .. ")")
+	end
+	if rewards.Orb then
+		local biome = rewards.Orb.Biome
+		if biome == "Best" or biome == nil then
+			biome = Services.PetService:GetBestBiome(player)
+		end
+		Services.PetService:GiveOrb(player, { Rarity = rewards.Orb.Rarity, Biome = biome, Mutation = rewards.Orb.Mutation })
+		local prefix = rewards.Orb.Mutation and (rewards.Orb.Mutation .. " ") or ""
+		table.insert(granted, prefix .. rewards.Orb.Rarity .. " Soul")
+	end
+	if rewards.Candy and rewards.Candy > 0 and Services.EventService:IsActive() then
+		Services.EventService:AddCandy(player, rewards.Candy, false)
+		table.insert(granted, rewards.Candy .. " Candy")
+	end
+	Services.PlayerDataService:MarkDirty(player)
+	return granted
+end
+
+return Rewards
+]]></string>
+          </Properties>
+        </Item>
       </Item>
-      <Item class="Folder" referent="36">
+      <Item class="Folder" referent="42">
         <Properties>
           <string name="Name">World</string>
         </Properties>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">ModelFactory</string>
             <string name="Source"><![CDATA[--[[
@@ -4685,7 +5686,7 @@ local function weldTo(root: BasePart, part: BasePart)
 end
 
 -- Soul Orb ---------------------------------------------------------------------
-function ModelFactory.MakeOrb(rarityId: string, biomeId: string): Model
+function ModelFactory.MakeOrb(rarityId: string, biomeId: string, mutationId: string?): Model
 	local rarity = PetConfig.GetRarity(rarityId)
 	local biome = BiomeConfig.Get(biomeId)
 
@@ -4716,8 +5717,9 @@ function ModelFactory.MakeOrb(rarityId: string, biomeId: string): Model
 		end
 	end
 	addSparkles(core, rarity.Color, 4 + rarity.Order * 3)
+	local mutation = mutationId and PetConfig.Mutations[mutationId]
 	ModelFactory.Billboard(core, {
-		{ Text = rarity.Id .. " Soul", Color = rarity.Color },
+		{ Text = (mutation and (mutation.Id .. " ") or "") .. rarity.Id .. " Soul", Color = mutation and mutation.Color or rarity.Color },
 		{ Text = biome.Name, Color = biome.Color },
 	}, rarity.OrbSize + 1.2, 120)
 	model:SetAttribute("Rarity", rarityId)
@@ -4898,7 +5900,7 @@ return ModelFactory
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">WorldBuilder</string>
             <string name="Source"><![CDATA[--[[
@@ -5160,19 +6162,19 @@ return WorldBuilder
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="39">
+  <Item class="StarterPlayer" referent="45">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="40">
+    <Item class="StarterPlayerScripts" referent="46">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="41">
+      <Item class="Folder" referent="47">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="42">
+        <Item class="LocalScript" referent="48">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[--[[
@@ -5192,6 +6194,7 @@ local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local PolicyService = game:GetService("PolicyService")
+local SoundService = game:GetService("SoundService")
 
 local player = Players.LocalPlayer
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -5202,6 +6205,8 @@ local EconomyConfig = require(Shared.Config:WaitForChild("EconomyConfig"))
 local PetConfig = require(Shared.Config:WaitForChild("PetConfig"))
 local BiomeConfig = require(Shared.Config:WaitForChild("BiomeConfig"))
 local MonetizationConfig = require(Shared.Config:WaitForChild("MonetizationConfig"))
+local RewardConfig = require(Shared.Config:WaitForChild("RewardConfig"))
+local EventConfig = require(Shared.Config:WaitForChild("EventConfig"))
 
 local THEME = {
 	Bg = Color3.fromRGB(22, 16, 38),
@@ -5215,6 +6220,39 @@ local THEME = {
 	SubText = Color3.fromRGB(190, 180, 220),
 	Font = Enum.Font.FredokaOne,
 }
+
+-- Seasonal re-skin: Halloween turns the UI orange & purple.
+local EVENT_ACTIVE = Workspace:GetAttribute("EventActive") == true
+if EVENT_ACTIVE then
+	THEME.Bg = Color3.fromRGB(26, 12, 30)
+	THEME.Panel = Color3.fromRGB(42, 20, 46)
+	THEME.Row = Color3.fromRGB(70, 34, 60)
+	THEME.Accent = Color3.fromRGB(255, 120, 30)
+end
+
+-- Sounds (built-in Roblox sounds; swap the ids for your own audio from the Creator Store)
+local SOUNDS = {
+	Ping = "rbxasset://sounds/electronicpingshort.wav",
+	Click = "rbxasset://sounds/clickfast.wav",
+	Hit = "rbxasset://sounds/swordlunge.wav",
+}
+local soundCache: { [string]: Sound } = {}
+local function playSound(name: string, pitch: number?)
+	local id = SOUNDS[name]
+	if not id then
+		return
+	end
+	local sound = soundCache[name]
+	if not sound then
+		sound = Instance.new("Sound")
+		sound.SoundId = id
+		sound.Volume = 0.5
+		sound.Parent = SoundService
+		soundCache[name] = sound
+	end
+	sound.PlaybackSpeed = pitch or 1
+	SoundService:PlayLocalSound(sound)
+end
 
 local snapshot: any = nil
 local serverTimeOffset = 0
@@ -5281,6 +6319,7 @@ local function button(text: string, color: Color3, onClick: () -> ()): TextButto
 		if busy then
 			return
 		end
+		playSound("Click", 1.2)
 		busy = true
 		task.spawn(function()
 			local ok, err = pcall(onClick)
@@ -5333,7 +6372,7 @@ end
 
 -- Banner (server-wide announcements) ------------------------------------------------------------------------
 local banner = label({
-	Name = "Banner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 120),
+	Name = "Banner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 192),
 	Size = UDim2.new(0.6, 0, 0, 40), Text = "", TextTransparency = 1, Parent = gui,
 })
 local bannerToken = 0
@@ -5353,15 +6392,20 @@ end
 -- Top bar ------------------------------------------------------------------------------------------------------
 local topBar = new("Frame", {
 	Name = "TopBar", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8),
-	Size = UDim2.fromOffset(460, 100), BackgroundColor3 = THEME.Bg, BackgroundTransparency = 0.15, Parent = gui,
+	Size = UDim2.fromOffset(460, 122), BackgroundColor3 = THEME.Bg, BackgroundTransparency = 0.15, Parent = gui,
 }, { corner(14), stroke(THEME.Accent, 2) })
 local essenceLabel = label({ Text = "0", TextColor3 = Color3.fromRGB(150, 255, 230), Size = UDim2.new(1, -20, 0, 40), Position = UDim2.fromOffset(10, 4), Parent = topBar })
 local incomeLabel = label({ Text = "+0/s", TextColor3 = THEME.Good, Size = UDim2.new(1, -20, 0, 24), Position = UDim2.fromOffset(10, 44), Parent = topBar })
 local statsLabel = label({ Text = "", TextColor3 = THEME.SubText, Size = UDim2.new(1, -20, 0, 22), Position = UDim2.fromOffset(10, 70), Parent = topBar })
+local goalLabel = label({ Text = "", TextColor3 = THEME.Gold, Size = UDim2.new(1, -20, 0, 22), Position = UDim2.fromOffset(10, 95), Parent = topBar })
 
 local phaseLabel = label({
-	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 112), Size = UDim2.fromOffset(300, 0),
+	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 134), Size = UDim2.fromOffset(300, 0),
 	Text = "", Parent = gui,
+})
+local eventLabel = label({
+	AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 162), Size = UDim2.fromOffset(420, EVENT_ACTIVE and 24 or 0),
+	Text = "", TextColor3 = Color3.fromRGB(255, 150, 50), Parent = gui,
 })
 
 -- Carry bar -------------------------------------------------------------------------------------------------------
@@ -5714,6 +6758,9 @@ local function refreshShop()
 		if key == "StealBack" and snapshot and snapshot.CanStealBack then
 			show = true
 		end
+		if info.Event and not (snapshot and snapshot.EventActive) then
+			show = false
+		end
 		if show then
 			order += 1
 			local productKey = key
@@ -5758,41 +6805,256 @@ do
 	label({ Text = "Follow the group & like the game for new codes!", TextColor3 = THEME.SubText, Size = UDim2.new(1, -8, 0, 30), LayoutOrder = 3, Parent = codesList })
 end
 
+-- Gifts panel (daily streak, playtime gifts, daily quests) ----------------------------------------------------------------------
+local _, giftsList = makePanel("Gifts", "Daily Gifts & Quests")
+local snapshotReceivedAt = os.clock()
+
+local function sessionSeconds(): number
+	local rewards = snapshot and snapshot.Rewards
+	if not rewards then
+		return 0
+	end
+	return rewards.SessionSeconds + (os.clock() - snapshotReceivedAt)
+end
+
+local function refreshGifts()
+	clearList(giftsList)
+	local rewards = snapshot and snapshot.Rewards
+	if not rewards then
+		return
+	end
+	local order = 0
+	local function nextOrder()
+		order += 1
+		return order
+	end
+
+	sectionHeader(giftsList, nextOrder(), string.format("Login Streak: %d day(s) | come back every day!", rewards.DailyStreak))
+	for day, entry in ipairs(RewardConfig.Daily) do
+		local isToday = day == rewards.DailyDay
+		local done = (not rewards.DailyCanClaim and day <= rewards.DailyDay) or (rewards.DailyCanClaim and day < rewards.DailyDay)
+		local buttons = nil
+		if isToday and rewards.DailyCanClaim then
+			buttons = { { Text = "CLAIM", Color = THEME.Good, OnClick = function()
+				local result = request("ClaimDaily")
+				if result and result.ok then
+					playSound("Ping", 1.3)
+				end
+			end } }
+		end
+		local status = if done then "Claimed" elseif isToday then (rewards.DailyCanClaim and "Ready!" or "Claimed") else "Locked"
+		local _, title = makeRow(giftsList, nextOrder(), string.format("Day %d: %s", day, entry.Label), status, buttons)
+		title.TextColor3 = isToday and THEME.Gold or (done and THEME.SubText or THEME.Text)
+	end
+
+	sectionHeader(giftsList, nextOrder(), "Playtime Gifts (this session)")
+	local claimedSet = {}
+	for _, index in ipairs(rewards.PlaytimeClaimed) do
+		claimedSet[index] = true
+	end
+	for index, gift in ipairs(RewardConfig.Playtime) do
+		local remaining = gift.Minutes * 60 - sessionSeconds()
+		local claimed = claimedSet[index]
+		local buttons = nil
+		if not claimed and remaining <= 0 then
+			buttons = { { Text = "CLAIM", Color = THEME.Good, OnClick = function()
+				local result = request("ClaimPlaytime", index)
+				if result and result.ok then
+					playSound("Ping", 1.2)
+				end
+			end } }
+		end
+		local status = if claimed then "Claimed" elseif remaining <= 0 then "Ready!" else ("in " .. Format.Time(remaining))
+		makeRow(giftsList, nextOrder(), string.format("%d min: %s", gift.Minutes, gift.Label), status, buttons)
+	end
+
+	sectionHeader(giftsList, nextOrder(), "Daily Quests | new quests in " .. Format.Time(rewards.NextResetIn))
+	local allClaimed = #rewards.Quests > 0
+	for index, quest in ipairs(rewards.Quests) do
+		allClaimed = allClaimed and quest.Claimed
+		local finished = quest.Progress >= quest.Goal
+		local buttons = nil
+		if finished and not quest.Claimed then
+			buttons = { { Text = "CLAIM", Color = THEME.Good, OnClick = function()
+				local result = request("ClaimQuest", index)
+				if result and result.ok then
+					playSound("Ping", 1.1)
+				end
+			end } }
+		end
+		local status = quest.Claimed and "Claimed" or string.format("%d / %d", quest.Progress, quest.Goal)
+		makeRow(giftsList, nextOrder(), quest.Text, status, buttons)
+	end
+	local bonusButtons = nil
+	if allClaimed and not rewards.QuestBonusClaimed then
+		bonusButtons = { { Text = "CLAIM", Color = THEME.Gold, OnClick = function()
+			local result = request("ClaimQuest", "Bonus")
+			if result and result.ok then
+				playSound("Ping", 1.5)
+			end
+		end } }
+	end
+	makeRow(giftsList, nextOrder(), "Finish all 3: LEGENDARY Soul", rewards.QuestBonusClaimed and "Claimed" or "Complete every quest today", bonusButtons)
+end
+
+-- Count of things waiting to be claimed (drives the "!" badge on the Gifts button)
+local function claimableCount(): number
+	local rewards = snapshot and snapshot.Rewards
+	if not rewards then
+		return 0
+	end
+	local count = rewards.DailyCanClaim and 1 or 0
+	local claimedSet = {}
+	for _, index in ipairs(rewards.PlaytimeClaimed) do
+		claimedSet[index] = true
+	end
+	for index, gift in ipairs(RewardConfig.Playtime) do
+		if not claimedSet[index] and sessionSeconds() >= gift.Minutes * 60 then
+			count += 1
+		end
+	end
+	local allClaimed = #rewards.Quests > 0
+	for _, quest in ipairs(rewards.Quests) do
+		if quest.Progress >= quest.Goal and not quest.Claimed then
+			count += 1
+		end
+		allClaimed = allClaimed and quest.Claimed
+	end
+	if allClaimed and not rewards.QuestBonusClaimed then
+		count += 1
+	end
+	return count
+end
+
+-- Event panel (Halloween Candy Shop) -------------------------------------------------------------------------------------------------
+local _, eventList = makePanel("Event", EventConfig.Name)
+
+local function refreshEvent()
+	clearList(eventList)
+	local endsIn = (Workspace:GetAttribute("EventEndsAt") or 0) - (os.time() + serverTimeOffset)
+	sectionHeader(eventList, 1, string.format("Candy: %s | ends in %s", Format.Number(attr("Candy", 0)), Format.Time(math.max(0, endsIn))))
+	makeRow(eventList, 2, "How to get Candy", "Collect glowing pumpkins, bring souls home, finish quests", nil)
+	for i, item in ipairs(EventConfig.Shop) do
+		local itemId = item.Id
+		local affordable = attr("Candy", 0) >= item.Cost
+		makeRow(eventList, 2 + i, item.Name, item.Desc, {
+			{ Text = item.Cost .. " Candy", Color = affordable and THEME.Accent or THEME.Row, OnClick = function()
+				local result = request("BuyEventItem", itemId)
+				if result and result.ok then
+					playSound("Ping", 0.9)
+				end
+			end },
+		})
+	end
+	local order = 20
+	for _, key in ipairs({ "CandySmall", "CandyLarge" }) do
+		local info = MonetizationConfig.Products[key]
+		order += 1
+		local productKey = key
+		makeRow(eventList, order, info.Name, info.Desc, {
+			{ Text = "R$ " .. info.Price, Color = THEME.Gold, OnClick = function() promptProduct(productKey) end },
+		})
+	end
+end
+
+-- Spirit Index panel -----------------------------------------------------------------------------------------------------------------
+local _, indexList = makePanel("Index", "Spirit Index")
+
+local function refreshIndex()
+	clearList(indexList)
+	local discovered = snapshot and snapshot.Index or {}
+	local total, found = 0, 0
+	for _, biomeId in ipairs(BiomeConfig.Order) do
+		for _, species in pairs(BiomeConfig.Get(biomeId).Species) do
+			total += 1
+			if discovered[species] then
+				found += 1
+			end
+		end
+	end
+	sectionHeader(indexList, 0, string.format("%d / %d discovered | +%d%% Essence forever", found, total, math.floor(found * RewardConfig.IndexBonusPerSpecies * 100 + 0.5)))
+	for i, biomeId in ipairs(BiomeConfig.Order) do
+		local biome = BiomeConfig.Get(biomeId)
+		local count = 0
+		for _, species in pairs(biome.Species) do
+			if discovered[species] then
+				count += 1
+			end
+		end
+		sectionHeader(indexList, i * 2 - 1, string.format("%s  %d/7", biome.Name, count))
+		local grid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -8, 0, 96), LayoutOrder = i * 2, Parent = indexList }, {
+			new("UIGridLayout", { CellSize = UDim2.new(0.25, -6, 0, 44), CellPadding = UDim2.fromOffset(6, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
+		})
+		for order, rarityId in ipairs(PetConfig.RarityOrder) do
+			local species = biome.Species[rarityId]
+			local known = discovered[species] == true
+			local cell = new("Frame", { BackgroundColor3 = known and THEME.Row or THEME.Bg, LayoutOrder = order, Parent = grid }, { corner(8) })
+			label({
+				Text = known and species or "???", TextColor3 = known and PetConfig.GetRarity(rarityId).Color or THEME.SubText,
+				Size = UDim2.new(1, -6, 1, -4), Position = UDim2.fromOffset(3, 2), Parent = cell,
+			})
+		end
+	end
+end
+
 -- Side menu ------------------------------------------------------------------------------------------------------------------------
 local menu = new("Frame", {
-	Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(120, 380),
+	Name = "Menu", AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0), Size = UDim2.fromOffset(120, 540),
 	BackgroundTransparency = 1, Parent = gui,
 }, { new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }) })
 
 local menuItems = {
+	{ "Gifts", Color3.fromRGB(255, 90, 140) },
 	{ "Upgrades", THEME.Good },
 	{ "Spirits", THEME.Accent },
 	{ "Rebirth", Color3.fromRGB(230, 90, 230) },
 	{ "Shop", THEME.Gold },
+	{ "Index", Color3.fromRGB(90, 200, 220) },
 	{ "Codes", Color3.fromRGB(80, 160, 255) },
 }
+if EVENT_ACTIVE then
+	table.insert(menuItems, 1, { "Event", Color3.fromRGB(255, 120, 30) })
+end
+local menuButtons: { [string]: TextButton } = {}
+local function refreshPanel(name: string)
+	if name == "Upgrades" then
+		refreshUpgrades()
+	elseif name == "Spirits" then
+		refreshSpirits()
+	elseif name == "Rebirth" then
+		refreshRebirth()
+	elseif name == "Shop" then
+		refreshShop()
+	elseif name == "Gifts" then
+		refreshGifts()
+	elseif name == "Event" then
+		refreshEvent()
+	elseif name == "Index" then
+		refreshIndex()
+	end
+end
 for i, item in ipairs(menuItems) do
 	local name = item[1]
 	local b = button(name, item[2], function()
 		togglePanel(name)
-		if name == "Upgrades" then
-			refreshUpgrades()
-		elseif name == "Spirits" then
-			refreshSpirits()
-		elseif name == "Rebirth" then
-			refreshRebirth()
-		elseif name == "Shop" then
-			refreshShop()
-		end
+		refreshPanel(name)
 	end)
-	b.Size = UDim2.new(1, 0, 0, 52)
+	menuButtons[name] = b
+	b.Size = UDim2.new(1, 0, 0, 44)
 	b.LayoutOrder = i
 	b.Parent = menu
 end
 local lockButton = button("Lock Base", Color3.fromRGB(60, 140, 200), function()
 	request("RequestLock")
 end)
-lockButton.Size = UDim2.new(1, 0, 0, 52)
+lockButton.Size = UDim2.new(1, 0, 0, 44)
+
+-- Red "!" badge on Gifts when something can be claimed
+local giftBadge = label({
+	Text = "!", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -4, 0, 4), Size = UDim2.fromOffset(26, 26),
+	BackgroundTransparency = 0, BackgroundColor3 = THEME.Bad, Visible = false, ZIndex = 5, Parent = menuButtons.Gifts,
+})
+new("UICorner", { CornerRadius = UDim.new(1, 0), Parent = giftBadge })
 lockButton.LayoutOrder = 10
 lockButton.Parent = menu
 
@@ -5810,7 +7072,10 @@ local function showHatch(result)
 	hatchToken += 1
 	local token = hatchToken
 	local rarity = PetConfig.GetRarity(result.Rarity)
-	hatchTitle.Text = result.Ascended and "ASCENDED! Your soul hatched into..." or "Your soul hatched into..."
+	hatchTitle.Text = if result.NewDiscovery then "NEW SPIRIT DISCOVERED! (+1% Essence forever)"
+		elseif result.Ascended then "ASCENDED! Your soul hatched into..."
+		else "Your soul hatched into..."
+	playSound("Ping", 0.8 + rarity.Order * 0.1)
 	hatchName.Text = (result.Mutation ~= "None" and (result.Mutation .. " ") or "") .. result.Species
 	hatchName.TextColor3 = rarity.Color
 	hatchInfo.Text = string.format("%s | +%s Essence/s", result.Rarity, Format.Number(result.Income))
@@ -5830,6 +7095,26 @@ local function refreshTopBar()
 	incomeLabel.Text = "+" .. Format.Number(attr("Income", 0)) .. "/s"
 	local rebirths = attr("Rebirths", 0)
 	statsLabel.Text = string.format("Speed %d  |  Rebirth %d (x%.1f)  |  Luck x%.1f", attr("Speed", 16), rebirths, Formulas.RebirthMultiplier(rebirths), attr("Luck", 1))
+
+	-- "Next goal" hint: next biome to unlock, otherwise the next rebirth
+	local speed = attr("Speed", 16)
+	local goal = nil
+	for _, id in ipairs(BiomeConfig.Order) do
+		local biome = BiomeConfig.Get(id)
+		if speed < biome.SpeedRequired then
+			goal = string.format("Next: %d Speed unlocks %s (x%s souls)", biome.SpeedRequired, biome.Name, Format.Number(biome.IncomeMult))
+			break
+		end
+	end
+	if not goal then
+		local cost = Formulas.RebirthCost(rebirths)
+		goal = string.format("Next: Rebirth at %s Essence (%s)", Format.Number(cost), Format.Percent(math.min(1, attr("Essence", 0) / cost)))
+	end
+	goalLabel.Text = goal
+
+	if EVENT_ACTIVE then
+		eventLabel.Text = string.format("%s | Candy: %s", EventConfig.Name, Format.Number(attr("Candy", 0)))
+	end
 end
 
 local function refreshCarry()
@@ -5862,17 +7147,15 @@ local function onSnapshot(newSnapshot)
 		return
 	end
 	snapshot = newSnapshot
+	snapshotReceivedAt = os.clock()
 	serverTimeOffset = (newSnapshot.ServerTime or os.time()) - os.time()
-	if openPanelName == "Spirits" then
-		refreshSpirits()
-	elseif openPanelName == "Rebirth" then
-		refreshRebirth()
-	elseif openPanelName == "Shop" then
-		refreshShop()
+	if openPanelName and openPanelName ~= "Upgrades" and openPanelName ~= "Codes" then
+		refreshPanel(openPanelName)
 	end
+	giftBadge.Visible = claimableCount() > 0
 end
 
-for _, name in ipairs({ "Essence", "Income", "Speed", "Rebirths", "Luck" }) do
+for _, name in ipairs({ "Essence", "Income", "Speed", "Rebirths", "Luck", "Candy" }) do
 	player:GetAttributeChangedSignal(name):Connect(function()
 		refreshTopBar()
 		if openPanelName == "Upgrades" then
@@ -5887,7 +7170,18 @@ for _, name in ipairs({ "TreadmillTier", "CarryLevel", "Pedestals" }) do
 		end
 	end)
 end
-player:GetAttributeChangedSignal("CarryingRarity"):Connect(refreshCarry)
+player:GetAttributeChangedSignal("CarryingRarity"):Connect(function()
+	refreshCarry()
+	local rarity = player:GetAttribute("CarryingRarity")
+	if rarity then
+		playSound("Ping", 1 + PetConfig.GetRarity(rarity).Order * 0.08)
+	end
+end)
+player:GetAttributeChangedSignal("Candy"):Connect(function()
+	if openPanelName == "Event" then
+		refreshEvent()
+	end
+end)
 Workspace:GetAttributeChangedSignal("IsNight"):Connect(refreshPhase)
 Workspace:GetAttributeChangedSignal("IsEclipse"):Connect(refreshPhase)
 
@@ -5899,6 +7193,7 @@ Remotes.Event("Knockback").OnClientEvent:Connect(function(velocity: Vector3)
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if root and typeof(velocity) == "Vector3" then
 		root.AssemblyLinearVelocity = velocity
+		playSound("Hit", 0.9)
 	end
 end)
 
@@ -5955,6 +7250,76 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- Guide beam ----------------------------------------------------------------------------------------------------------------------------------
+-- Points home while you carry a soul, and to the nearest soul you can reach during your first 15 steals.
+local guidePart = new("Part", {
+	Name = "GuideTarget", Anchored = true, CanCollide = false, CanQuery = false, CanTouch = false,
+	Transparency = 1, Size = Vector3.one, Parent = Workspace,
+})
+local guideTargetAttachment = new("Attachment", { Parent = guidePart })
+local guideBeam = new("Beam", {
+	Attachment1 = guideTargetAttachment, Width0 = 0.7, Width1 = 0.7, FaceCamera = true, LightEmission = 1,
+	Color = ColorSequence.new(THEME.Gold), Transparency = NumberSequence.new(0.35), Segments = 1, Enabled = false, Parent = guidePart,
+})
+
+local function findGuideTarget(root: BasePart): Vector3?
+	if player:GetAttribute("CarryingRarity") then
+		local bases = Workspace:FindFirstChild("Bases")
+		local base = bases and bases:FindFirstChild(player:GetAttribute("BaseName") or "")
+		local zone = base and base:FindFirstChild("Zone")
+		if zone and zone:IsA("BasePart") then
+			return Vector3.new(zone.Position.X, root.Position.Y, zone.Position.Z)
+		end
+		return nil
+	end
+	local steals = snapshot and snapshot.Stats and snapshot.Stats.Steals or 0
+	if steals >= 15 then
+		return nil
+	end
+	local biomes = Workspace:FindFirstChild("Biomes")
+	if not biomes then
+		return nil
+	end
+	local speed = attr("Speed", 16)
+	local best, bestDistance = nil, math.huge
+	for _, biomeModel in ipairs(biomes:GetChildren()) do
+		local config = BiomeConfig.Biomes[biomeModel.Name]
+		if config and speed >= config.SpeedRequired then
+			for _, child in ipairs(biomeModel:GetChildren()) do
+				if child.Name == "SoulOrb" and child:IsA("Model") and child.PrimaryPart then
+					local distance = (child.PrimaryPart.Position - root.Position).Magnitude
+					if distance < bestDistance then
+						best, bestDistance = child.PrimaryPart.Position, distance
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+task.spawn(function()
+	local lastGiftsRefresh = 0
+	while true do
+		task.wait(0.3)
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local target = root and findGuideTarget(root)
+		if root and target then
+			local attachment = root:FindFirstChild("GuideAttachment") or new("Attachment", { Name = "GuideAttachment", Parent = root })
+			guideBeam.Attachment0 = attachment
+			guidePart.Position = target
+			guideBeam.Enabled = true
+		else
+			guideBeam.Enabled = false
+		end
+		giftBadge.Visible = claimableCount() > 0
+		if openPanelName == "Gifts" and os.clock() - lastGiftsRefresh > 5 then
+			lastGiftsRefresh = os.clock()
+			refreshGifts()
+		end
+	end
+end)
+
 -- Initial state -------------------------------------------------------------------------------------------------------------------------------
 task.spawn(function()
 	while not player:GetAttribute("DataLoaded") do
@@ -5974,6 +7339,14 @@ task.spawn(function()
 	refreshCarry()
 	refreshPhase()
 	toast("Steal glowing souls, run them home, hatch spirits, get rich!", "info")
+	if EVENT_ACTIVE then
+		announce("The " .. EventConfig.Name .. " is here! Collect pumpkins for Candy!", Color3.fromRGB(255, 140, 40))
+	end
+	-- Pop the Gifts panel open when today's login reward is waiting.
+	if snapshot and snapshot.Rewards and snapshot.Rewards.DailyCanClaim and openPanelName == nil then
+		togglePanel("Gifts")
+		refreshGifts()
+	end
 end)
 ]]></string>
           </Properties>

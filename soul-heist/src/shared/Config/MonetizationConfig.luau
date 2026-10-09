@@ -6,7 +6,7 @@
 ]]
 
 export type PassInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number }
-export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean? }
+export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean?, Event: boolean? }
 
 local MonetizationConfig = {}
 
@@ -40,6 +40,9 @@ MonetizationConfig.Products = {
 	LegendaryOrb = { Id = 0, Price = 399, Order = 14, Name = "Legendary Soul", Desc = "A Legendary orb from your best unlocked biome" },
 	MythicOrb = { Id = 0, Price = 1299, Order = 15, Name = "Mythic Soul", Desc = "A Mythic orb from your best unlocked biome" },
 	ServerEclipse = { Id = 0, Price = 499, Order = 16, Name = "Summon Soul Eclipse", Desc = "15 min server-wide Eclipse: 5x spawn luck for EVERYONE" },
+	-- Seasonal (only shown while an event is active)
+	CandySmall = { Id = 0, Price = 49, Order = 17, Name = "Candy Bag", Desc = "120 Candy for the event shop", Event = true },
+	CandyLarge = { Id = 0, Price = 199, Order = 18, Name = "Candy Cauldron", Desc = "600 Candy for the event shop (BEST VALUE)", Event = true },
 } :: { [string]: ProductInfo }
 
 -- Effect constants used by the server
@@ -54,6 +57,8 @@ MonetizationConfig.Effects = {
 	ExtraPedestals = 5,
 	PhantomSpeed = 4,
 	PhantomLighter = 0.25,
+	CandySmall = 120,
+	CandyLarge = 600,
 }
 
 function MonetizationConfig.FindProductKey(productId: number): string?

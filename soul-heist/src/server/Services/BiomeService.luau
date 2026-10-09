@@ -103,7 +103,7 @@ function BiomeService:RollRarity(spawnLuck: number): string
 end
 
 -- Orb pickup --------------------------------------------------------------------------------------------
-local function attachPickupPrompt(model: Model, orb: { Rarity: string, Biome: string }, onTaken: () -> (), requiredSpeed: number?)
+local function attachPickupPrompt(model: Model, orb: { Rarity: string, Biome: string, Mutation: string? }, onTaken: () -> (), requiredSpeed: number?)
 	local primary = model.PrimaryPart
 	if not primary then
 		return
@@ -191,8 +191,8 @@ function BiomeService:SpawnWorldOrb(runtime: BiomeRuntime): boolean
 	return true
 end
 
-function BiomeService:SpawnDroppedOrb(orb: { Rarity: string, Biome: string }, position: Vector3)
-	local model = ModelFactory.MakeOrb(orb.Rarity, orb.Biome)
+function BiomeService:SpawnDroppedOrb(orb: { Rarity: string, Biome: string, Mutation: string? }, position: Vector3)
+	local model = ModelFactory.MakeOrb(orb.Rarity, orb.Biome, orb.Mutation)
 	model:PivotTo(CFrame.new(position + Vector3.new(0, 1, 0)))
 	model.Name = "DroppedSoul"
 	model.Parent = droppedFolder

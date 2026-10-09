@@ -129,7 +129,7 @@ function PetService:RenderSlot(player: Player, index: number)
 
 	local model: Model
 	if slot.Type == "Orb" then
-		model = ModelFactory.MakeOrb(slot.Rarity, slot.Biome)
+		model = ModelFactory.MakeOrb(slot.Rarity, slot.Biome, slot.Mutation)
 		model:PivotTo(pedestalTop(pedestal, 2.5))
 		local info = model.PrimaryPart and model.PrimaryPart:FindFirstChild("Info")
 		if info then
@@ -191,7 +191,7 @@ function PetService:GetHatchDuration(player: Player, rarityId: string, biomeId: 
 end
 
 -- Places an orb on the first free pedestal. Returns the slot index or nil if full.
-function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: string }): number?
+function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: string, Mutation: string? }): number?
 	local data = Services.PlayerDataService:GetData(player)
 	local index = self:FindFreeSlot(player)
 	if not data or not index then
@@ -202,6 +202,7 @@ function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: strin
 		Type = "Orb",
 		Rarity = orb.Rarity,
 		Biome = orb.Biome,
+		Mutation = orb.Mutation, -- pre-set mutation (event shop souls); nil = rolled at hatch
 		HatchEnd = os.time() + duration,
 		HatchDuration = duration,
 	}
@@ -211,7 +212,7 @@ function PetService:PlaceOrb(player: Player, orb: { Rarity: string, Biome: strin
 end
 
 -- Removes an incubating orb (used by stealing). Returns the orb data or nil.
-function PetService:TakeOrb(player: Player, index: number): { Rarity: string, Biome: string }?
+function PetService:TakeOrb(player: Player, index: number): { Rarity: string, Biome: string, Mutation: string? }?
 	local data = Services.PlayerDataService:GetData(player)
 	local slot = data and data.Slots[tostring(index)]
 	if not slot or slot.Type ~= "Orb" then
@@ -220,11 +221,11 @@ function PetService:TakeOrb(player: Player, index: number): { Rarity: string, Bi
 	data.Slots[tostring(index)] = nil
 	self:RenderSlot(player, index)
 	Services.PlayerDataService:MarkDirty(player)
-	return { Rarity = slot.Rarity, Biome = slot.Biome }
+	return { Rarity = slot.Rarity, Biome = slot.Biome, Mutation = slot.Mutation }
 end
 
 -- Gives an orb: placed now if a pedestal is free, otherwise queued (purchases/codes never get lost).
-function PetService:GiveOrb(player: Player, orb: { Rarity: string, Biome: string }): boolean
+function PetService:GiveOrb(player: Player, orb: { Rarity: string, Biome: string, Mutation: string? }): boolean
 	if self:PlaceOrb(player, orb) then
 		return true
 	end
@@ -260,6 +261,7 @@ local function rollMutation(luck: number): string
 		local mutation = PetConfig.Mutations[id]
 		local allowed = (not mutation.NightOnly or dayNight:IsNight() or dayNight:IsEclipse())
 			and (not mutation.EclipseOnly or dayNight:IsEclipse())
+			and (not mutation.EventOnly or Services.EventService:IsActive())
 		if allowed and rng:NextNumber() < math.min(mutation.Chance * mutationLuck, 0.5) then
 			return id
 		end
@@ -283,7 +285,7 @@ function PetService:Hatch(player: Player, index: number)
 			ascended = true
 		end
 	end
-	local mutation = rollMutation(luck)
+	local mutation = if slot.Mutation and PetConfig.Mutations[slot.Mutation] then slot.Mutation else rollMutation(luck)
 	local biome = BiomeConfig.Get(slot.Biome)
 
 	local id = tostring(data.NextPetId)
@@ -299,6 +301,12 @@ function PetService:Hatch(player: Player, index: number)
 	}
 	data.Slots[tostring(index)] = { Type = "Pet", PetId = id }
 	data.Stats.Hatched += 1
+	local species = data.Pets[id].Species
+	local discovered = not data.Index[species]
+	if discovered then
+		data.Index[species] = true -- Spirit Index: +1% Essence per species
+	end
+	Services.RewardService:Progress(player, "Hatch", 1)
 
 	self:RenderSlot(player, index)
 	Services.EconomyService:Recalculate(player)
@@ -312,6 +320,7 @@ function PetService:Hatch(player: Player, index: number)
 		Biome = pet.Biome,
 		Income = income,
 		Ascended = ascended,
+		NewDiscovery = discovered,
 	})
 	if PetConfig.GetRarity(pet.Rarity).Order >= 6 or (mutation ~= "None" and PetConfig.GetMutation(mutation).Mult >= 15) then
 		local label = (mutation ~= "None" and (mutation .. " ") or "") .. pet.Rarity .. " " .. pet.Species

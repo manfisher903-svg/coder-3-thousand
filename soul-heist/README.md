@@ -15,6 +15,7 @@ A complete design, economy, monetization plan, and **drop-in Luau codebase** for
 | 5 | [Build Guide](docs/05-build-guide.md) | Exact Studio setup (Rojo or copy-paste), testing, map naming, 4-week schedule |
 | 6 | [Marketing & Launch](docs/06-marketing-launch.md) | Icon/thumbnails, codes, influencer plan, 30-day update roadmap |
 | 7 | [Polish & Anti-Exploit](docs/07-polish-and-anti-exploit.md) | VFX, sound design, anti-exploit priorities, retention polish |
+| 8 | [Retention & Halloween Event](docs/08-retention-and-events.md) | Daily streak, playtime gifts, daily quests, Spirit Index, leaderboards, Hallow-Soul Festival |
 
 ## Fastest start: open the ready-made place file
 
@@ -47,7 +48,11 @@ Rebuild it after code changes with `rojo build default.project.json -o SoulHeist
 - **UpgradeService / RebirthService**: Speed, Treadmill, Harness, Pedestals; rebirth with vault and perk shop
 - **MonetizationService**: pass ownership + idempotent `ProcessReceipt` (save-before-ack) for 16 products
 - **CodesService**, **DayNightService** (Soul Eclipse), **ToolService** (server-side bonk hits), **AntiExploitService**
-- **Client**: entire HUD built in code (Upgrades, Spirits, Rebirth, Shop, Codes, Lock), toasts, banners, hatch pop-up
+- **RewardService**: 7-day login streak, playtime gifts, 3 daily quests + all-quests bonus
+- **EventService**: Hallow-Soul Festival: spooky lighting/decor, Candy pumpkins, Haunted mutation, Candy Shop
+- **LeaderboardService**: global top-10 boards (Essence, Steals, Rebirths) in the hub
+- **Spirit Index**: +1% Essence per unique spirit discovered
+- **Client**: entire HUD built in code (Event, Gifts, Upgrades, Spirits, Rebirth, Shop, Index, Codes, Lock), toasts, banners, hatch pop-up, guide beam, next-goal hint, sounds, Halloween re-skin
 
 All tuning lives in `src/shared/Config/*`. Pacing can be re-simulated with `python3 tools/pacing_sim.py`.
 

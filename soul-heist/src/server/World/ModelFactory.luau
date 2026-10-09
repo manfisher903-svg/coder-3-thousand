@@ -117,7 +117,7 @@ local function weldTo(root: BasePart, part: BasePart)
 end
 
 -- Soul Orb ---------------------------------------------------------------------
-function ModelFactory.MakeOrb(rarityId: string, biomeId: string): Model
+function ModelFactory.MakeOrb(rarityId: string, biomeId: string, mutationId: string?): Model
 	local rarity = PetConfig.GetRarity(rarityId)
 	local biome = BiomeConfig.Get(biomeId)
 
@@ -148,8 +148,9 @@ function ModelFactory.MakeOrb(rarityId: string, biomeId: string): Model
 		end
 	end
 	addSparkles(core, rarity.Color, 4 + rarity.Order * 3)
+	local mutation = mutationId and PetConfig.Mutations[mutationId]
 	ModelFactory.Billboard(core, {
-		{ Text = rarity.Id .. " Soul", Color = rarity.Color },
+		{ Text = (mutation and (mutation.Id .. " ") or "") .. rarity.Id .. " Soul", Color = mutation and mutation.Color or rarity.Color },
 		{ Text = biome.Name, Color = biome.Color },
 	}, rarity.OrbSize + 1.2, 120)
 	model:SetAttribute("Rarity", rarityId)
