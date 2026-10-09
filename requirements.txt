@@ -6,3 +6,6 @@ cryptography>=41.0
 Flask>=3.0
 # Production web server, used only when hosting the app publicly (see DEPLOY.md).
 gunicorn>=21.0
+# Detect the language of findings (offline, small). Optional offline translation
+# to English uses `argostranslate` if you also install it (see scanner/translate.py).
+langdetect>=1.0.9

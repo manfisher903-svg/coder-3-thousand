@@ -455,6 +455,22 @@ def test_inventory_roundtrip():
     assert "Personal Information Inventory" in md
 
 
+def test_language_detect_and_translate_noop():
+    from scanner.translate import detect_language, translate_to_english
+    # English (or too-short) text is treated as English, never "translated".
+    assert detect_language("hi")[0] == "en"
+    assert translate_to_english("your SSN is 123-45-6789") is None
+    # A clearly Spanish sentence is detected as Spanish when langdetect is present.
+    code, name = detect_language("Su número de seguro social es muy importante.")
+    try:
+        import langdetect  # noqa: F401
+        assert code == "es" and name == "Spanish"
+    except Exception:
+        assert code == "en"   # graceful fallback when langdetect isn't installed
+    # Without the offline engine installed, translation returns None (no network).
+    assert translate_to_english("Hola, ¿cómo estás?", "es") is None
+
+
 def test_account_provider_host_roundtrip():
     import tempfile, os
     from scanner.accounts import add_or_update, load_accounts

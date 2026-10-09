@@ -1032,11 +1032,17 @@ def profile(folder):
         where = f"in an email from <b>{escape(sender)}</b>"
         if subj:
             where += f" (subject: {escape(subj.strip())})"
+        lang = h.get("lang")
+        lang_tag = f' <span class="tag">in {escape(lang)}</span>' if lang else ""
+        en = h.get("context_en")
+        en_line = (f'<div class="note-v">In English: “{escape(en)}”</div>'
+                   if en else "")
         find_html += (
             f'<div class="note" style="border-left:4px solid {col}">'
-            f'<div class="note-h" style="color:{col}">Found {escape(label)}</div>'
+            f'<div class="note-h" style="color:{col}">Found {escape(label)}{lang_tag}</div>'
             f'<div>{where}.</div>'
             f'<div class="note-v">As it appeared: “{escape(shown)}”</div>'
+            f'{en_line}'
             f'</div>')
     if not find_html:
         find_html = "<p class='muted'>No sensitive items found.</p>"

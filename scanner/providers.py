@@ -88,6 +88,7 @@ PROVIDERS = [
     ("Yandex", "imap.yandex.com"),
     ("Mail.com", "imap.mail.com"),
     ("Mail.ru", "imap.mail.ru"),
+    ("My.com / myMail (@my.com address)", "imap.my.com"),
     ("NetZero (POP3)", "pop.netzero.net"),
     ("Juno (POP3)", "pop.juno.com"),
     ("cPanel Webmail (your own domain)", "__cpanel__"),

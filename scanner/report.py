@@ -50,6 +50,8 @@ class SensitiveHit:
     rendered: str
     advice: str
     context: str = ""
+    lang: str = ""          # non-English language name, else ""
+    context_en: str = ""    # offline English translation of context, if available
 
 
 class Inventory:
@@ -75,7 +77,19 @@ class Inventory:
         self.services[key].observe(domain, subject, date)
 
     def add_findings(self, findings: List[Finding], location: str):
+        from .translate import detect_language, translate_to_english
         for f in findings:
+            # Full context only at 'full' detail (it contains the value).
+            ctx = f.context if self.detail == "full" else ""
+            lang_label = ""
+            ctx_en = ""
+            if ctx:
+                code, name = detect_language(ctx)
+                if code and not code.startswith("en"):
+                    lang_label = name
+                    tr = translate_to_english(ctx, code)  # offline; None if N/A
+                    if tr:
+                        ctx_en = tr
             self.sensitive.append(
                 SensitiveHit(
                     kind=f.kind,
@@ -83,8 +97,9 @@ class Inventory:
                     location=location,
                     rendered=render_value(f, self.detail),
                     advice=f.advice,
-                    # Full context only at 'full' detail (it contains the value).
-                    context=f.context if self.detail == "full" else "",
+                    context=ctx,
+                    lang=lang_label,
+                    context_en=ctx_en,
                 )
             )
 
@@ -114,6 +129,7 @@ class Inventory:
             ({
                 "kind": h.kind, "severity": h.severity, "location": h.location,
                 "value": h.rendered, "advice": h.advice, "context": h.context,
+                "lang": h.lang, "context_en": h.context_en,
             } for h in self.sensitive if h.kind not in IDENTITY_KINDS),
             key=lambda h: sev_order.get(h["severity"], 9),
         )
