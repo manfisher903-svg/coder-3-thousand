@@ -16,6 +16,18 @@ A complete design, economy, monetization plan, and **drop-in Luau codebase** for
 | 6 | [Marketing & Launch](docs/06-marketing-launch.md) | Icon/thumbnails, codes, influencer plan, 30-day update roadmap |
 | 7 | [Polish & Anti-Exploit](docs/07-polish-and-anti-exploit.md) | VFX, sound design, anti-exploit priorities, retention polish |
 
+## Fastest start: open the ready-made place file
+
+`SoulHeist.rbxlx` already contains every script in the right place (built with Rojo from `src/`).
+
+1. Download `SoulHeist.rbxlx` and double-click it (or Roblox Studio → File → Open from File).
+2. Press **Play**. The map, guardians, orbs and HUD generate themselves.
+3. **File → Publish to Roblox** → create a new experience named "Steal a Soul".
+4. Game Settings → Security → *Enable Studio Access to API Services*; Places → Server Fill → Max Players = **8**.
+5. Create your passes/products in the Creator Hub and paste the IDs into `ReplicatedStorage.Shared.Config.MonetizationConfig`, then publish again.
+
+Rebuild it after code changes with `rojo build default.project.json -o SoulHeist.rbxlx`.
+
 ## Quick start (about 10 minutes)
 
 1. New **Baseplate** in Roblox Studio, then Game Settings → Security → *Enable Studio Access to API Services*; Max Players = 8.
