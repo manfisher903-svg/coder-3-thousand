@@ -98,7 +98,7 @@ StarterPlayer
 1. Publish the game (File → Publish to Roblox).
 2. **Creator Hub → Creations → Steal a Soul → Monetization**:
    - **Passes** → create the 10 passes from `docs/03-monetization.md` (icon 512×512, name, price, description).
-   - **Developer Products** → create the 18 products (16 core + 2 Halloween Candy packs).
+   - **Developer Products** → create the 24 products (16 core + 2 Halloween Candy packs + 6 Robux upgrades).
 3. Copy each ID into `src/shared/Config/MonetizationConfig.luau` (`Id = 0` → real ID). Anything left at `0` shows "Coming soon".
 4. Test purchases in Studio (Studio purchases are free test purchases), and check the Output for warnings.
 

@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local BiomeConfig = require(Shared.Config.BiomeConfig)
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Remotes = require(Shared.Remotes)
@@ -85,6 +86,93 @@ local function buyPedestal(player: Player, data: any)
 	Services.PetService:RenderBase(player)
 	Services.EconomyService:Recalculate(player)
 	return { ok = true, msg = "New pedestal unlocked! (" .. data.Pedestals .. ")" }
+end
+
+-- Robux upgrades -----------------------------------------------------------------------------------------
+-- Called by MonetizationService. Each returns true if something was granted (false = already maxed,
+-- the purchase is then compensated with Essence).
+
+-- Highest Treadmill tier this player's rebirth count allows.
+local function maxAllowedTier(data: any): number
+	local best = 1
+	for tier, info in ipairs(EconomyConfig.Treadmill) do
+		if not info.RequiresRebirths or data.Rebirths >= info.RequiresRebirths then
+			best = tier
+		end
+	end
+	return best
+end
+
+local function finish(player: Player)
+	Services.StealService:RefreshWalkSpeed(player)
+	Services.PlayerDataService:Replicate(player)
+	Services.PlayerDataService:MarkDirty(player)
+end
+
+function UpgradeService:GrantSpeed(player: Player, amount: number): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return false
+	end
+	local topTier = maxAllowedTier(data)
+	local absoluteCap = Formulas.TreadmillCap(topTier)
+	if data.Speed >= absoluteCap then
+		return false
+	end
+	local newSpeed = math.min(data.Speed + amount, absoluteCap)
+	-- Raise the Treadmill tier for free so the bought Speed fits under the cap.
+	while Formulas.TreadmillCap(data.TreadmillTier) < newSpeed and data.TreadmillTier < topTier do
+		data.TreadmillTier += 1
+	end
+	data.Speed = newSpeed
+	finish(player)
+	return true
+end
+
+function UpgradeService:GrantNextBiome(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return false
+	end
+	for _, id in ipairs(BiomeConfig.Order) do
+		local required = BiomeConfig.Get(id).SpeedRequired
+		if data.Speed < required then
+			return self:GrantSpeed(player, required - data.Speed)
+		end
+	end
+	return false
+end
+
+function UpgradeService:GrantTreadmill(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.TreadmillTier >= maxAllowedTier(data) then
+		return false
+	end
+	data.TreadmillTier += 1
+	finish(player)
+	return true
+end
+
+function UpgradeService:GrantHarnessMax(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.CarryLevel >= EconomyConfig.CarryMaxLevel then
+		return false
+	end
+	data.CarryLevel = EconomyConfig.CarryMaxLevel
+	finish(player)
+	return true
+end
+
+function UpgradeService:GrantPedestal(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.Pedestals >= EconomyConfig.MaxPedestals then
+		return false
+	end
+	data.Pedestals += 1
+	Services.PetService:RenderBase(player)
+	Services.EconomyService:Recalculate(player)
+	finish(player)
+	return true
 end
 
 function UpgradeService:Init(services)

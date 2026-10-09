@@ -405,7 +405,7 @@ return GameConfig
 ]]
 
 export type PassInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number }
-export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean?, Event: boolean? }
+export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean?, Event: boolean?, Upgrade: boolean? }
 
 local MonetizationConfig = {}
 
@@ -442,6 +442,13 @@ MonetizationConfig.Products = {
 	-- Seasonal (only shown while an event is active)
 	CandySmall = { Id = 0, Price = 49, Order = 17, Name = "Candy Bag", Desc = "120 Candy for the event shop", Event = true },
 	CandyLarge = { Id = 0, Price = 199, Order = 18, Name = "Candy Cauldron", Desc = "600 Candy for the event shop (BEST VALUE)", Event = true },
+	-- Robux upgrades ("skip the grind"). Shown in the Upgrades panel. Reset on rebirth like normal upgrades.
+	NextBiome = { Id = 0, Price = 99, Order = 19, Name = "Unlock Next Biome", Desc = "Instantly get the Speed for the next biome", Upgrade = true },
+	SpeedPlus10 = { Id = 0, Price = 49, Order = 20, Name = "+10 Speed", Desc = "+10 Speed (Treadmill auto-upgrades)", Upgrade = true },
+	SpeedPlus50 = { Id = 0, Price = 179, Order = 21, Name = "+50 Speed", Desc = "+50 Speed (Treadmill auto-upgrades)", Upgrade = true },
+	TreadmillNext = { Id = 0, Price = 99, Order = 22, Name = "Treadmill Upgrade", Desc = "Next Treadmill tier (raises your Speed cap)", Upgrade = true },
+	HarnessMax = { Id = 0, Price = 149, Order = 23, Name = "Max Soul Harness", Desc = "Soul Harness to level 15 (-60% carry slowdown)", Upgrade = true },
+	PedestalPlus1 = { Id = 0, Price = 79, Order = 24, Name = "+1 Pedestal", Desc = "Unlock your next pedestal instantly", Upgrade = true },
 } :: { [string]: ProductInfo }
 
 -- Effect constants used by the server
@@ -3256,6 +3263,17 @@ local function grantOrb(rarity: string)
 	end
 end
 
+local function upgradeHandler(grant: (Player) -> boolean, successMsg: string, maxedMsg: string)
+	return function(player: Player)
+		if grant(player) then
+			Services.PlayerDataService:Notify(player, successMsg, "success")
+		else
+			compensate(player, maxedMsg)
+		end
+		return true
+	end
+end
+
 local ProductHandlers: { [string]: (Player, any) -> boolean } = {
 	StarterPack = function(player, data)
 		if data.StarterPackBought then
@@ -3324,6 +3342,13 @@ local ProductHandlers: { [string]: (Player, any) -> boolean } = {
 		Services.PlayerDataService:Notify(player, "+" .. Effects.CandyLarge .. " Candy!", "success")
 		return true
 	end,
+	-- Robux upgrades: if already maxed, compensate with Essence instead of wasting the purchase.
+	NextBiome = upgradeHandler(function(player) return Services.UpgradeService:GrantNextBiome(player) end, "Next biome unlocked!", "You've unlocked every biome you can."),
+	SpeedPlus10 = upgradeHandler(function(player) return Services.UpgradeService:GrantSpeed(player, 10) end, "+10 Speed!", "Your Speed is already maxed."),
+	SpeedPlus50 = upgradeHandler(function(player) return Services.UpgradeService:GrantSpeed(player, 50) end, "+50 Speed!", "Your Speed is already maxed."),
+	TreadmillNext = upgradeHandler(function(player) return Services.UpgradeService:GrantTreadmill(player) end, "Treadmill upgraded!", "Treadmill is maxed for now."),
+	HarnessMax = upgradeHandler(function(player) return Services.UpgradeService:GrantHarnessMax(player) end, "Soul Harness maxed!", "Soul Harness is already maxed."),
+	PedestalPlus1 = upgradeHandler(function(player) return Services.UpgradeService:GrantPedestal(player) end, "New pedestal unlocked!", "All pedestals are already unlocked."),
 	ServerEclipse = function(player)
 		Services.DayNightService:StartEclipse(Effects.EclipseSeconds, player.DisplayName)
 		return true
@@ -5351,6 +5376,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local BiomeConfig = require(Shared.Config.BiomeConfig)
 local Formulas = require(Shared.Formulas)
 local Format = require(Shared.Util.Format)
 local Remotes = require(Shared.Remotes)
@@ -5424,6 +5450,93 @@ local function buyPedestal(player: Player, data: any)
 	Services.PetService:RenderBase(player)
 	Services.EconomyService:Recalculate(player)
 	return { ok = true, msg = "New pedestal unlocked! (" .. data.Pedestals .. ")" }
+end
+
+-- Robux upgrades -----------------------------------------------------------------------------------------
+-- Called by MonetizationService. Each returns true if something was granted (false = already maxed,
+-- the purchase is then compensated with Essence).
+
+-- Highest Treadmill tier this player's rebirth count allows.
+local function maxAllowedTier(data: any): number
+	local best = 1
+	for tier, info in ipairs(EconomyConfig.Treadmill) do
+		if not info.RequiresRebirths or data.Rebirths >= info.RequiresRebirths then
+			best = tier
+		end
+	end
+	return best
+end
+
+local function finish(player: Player)
+	Services.StealService:RefreshWalkSpeed(player)
+	Services.PlayerDataService:Replicate(player)
+	Services.PlayerDataService:MarkDirty(player)
+end
+
+function UpgradeService:GrantSpeed(player: Player, amount: number): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return false
+	end
+	local topTier = maxAllowedTier(data)
+	local absoluteCap = Formulas.TreadmillCap(topTier)
+	if data.Speed >= absoluteCap then
+		return false
+	end
+	local newSpeed = math.min(data.Speed + amount, absoluteCap)
+	-- Raise the Treadmill tier for free so the bought Speed fits under the cap.
+	while Formulas.TreadmillCap(data.TreadmillTier) < newSpeed and data.TreadmillTier < topTier do
+		data.TreadmillTier += 1
+	end
+	data.Speed = newSpeed
+	finish(player)
+	return true
+end
+
+function UpgradeService:GrantNextBiome(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data then
+		return false
+	end
+	for _, id in ipairs(BiomeConfig.Order) do
+		local required = BiomeConfig.Get(id).SpeedRequired
+		if data.Speed < required then
+			return self:GrantSpeed(player, required - data.Speed)
+		end
+	end
+	return false
+end
+
+function UpgradeService:GrantTreadmill(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.TreadmillTier >= maxAllowedTier(data) then
+		return false
+	end
+	data.TreadmillTier += 1
+	finish(player)
+	return true
+end
+
+function UpgradeService:GrantHarnessMax(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.CarryLevel >= EconomyConfig.CarryMaxLevel then
+		return false
+	end
+	data.CarryLevel = EconomyConfig.CarryMaxLevel
+	finish(player)
+	return true
+end
+
+function UpgradeService:GrantPedestal(player: Player): boolean
+	local data = Services.PlayerDataService:GetData(player)
+	if not data or data.Pedestals >= EconomyConfig.MaxPedestals then
+		return false
+	end
+	data.Pedestals += 1
+	Services.PetService:RenderBase(player)
+	Services.EconomyService:Recalculate(player)
+	finish(player)
+	return true
 end
 
 function UpgradeService:Init(services)
@@ -6537,10 +6650,31 @@ do
 		{ Text = "Buy", Color = THEME.Accent, OnClick = function() request("RequestUpgrade", "Pedestal") end },
 	})
 	upgradeRows.Pedestal = { Title = t4, Sub = s4, Buttons = b4 }
-	sectionHeader(upgradesList, 5, "Biomes")
+
+	-- Robux upgrades (skip the grind)
+	sectionHeader(upgradesList, 5, "Instant Upgrades (Robux)")
+	local robuxKeys = {}
+	for key, info in pairs(MonetizationConfig.Products) do
+		if info.Upgrade then
+			table.insert(robuxKeys, key)
+		end
+	end
+	table.sort(robuxKeys, function(a, b)
+		return MonetizationConfig.Products[a].Order < MonetizationConfig.Products[b].Order
+	end)
+	for i, key in ipairs(robuxKeys) do
+		local info = MonetizationConfig.Products[key]
+		local productKey = key
+		local _, t, s, b = makeRow(upgradesList, 5 + i, info.Name, info.Desc, {
+			{ Text = "R$ " .. info.Price, Color = THEME.Gold, OnClick = function() promptProduct(productKey) end },
+		})
+		upgradeRows["Robux" .. key] = { Title = t, Sub = s, Buttons = b }
+	end
+
+	sectionHeader(upgradesList, 20, "Biomes")
 	for i, id in ipairs(BiomeConfig.Order) do
 		local biome = BiomeConfig.Get(id)
-		local _, t, s = makeRow(upgradesList, 5 + i, biome.Name, "", nil)
+		local _, t, s = makeRow(upgradesList, 20 + i, biome.Name, "", nil)
 		upgradeRows["Biome" .. id] = { Title = t, Sub = s, Biome = biome }
 	end
 end
@@ -6595,6 +6729,26 @@ local function refreshUpgrades()
 		upgradeRows.Pedestal.Buttons[1].BackgroundTransparency = essence >= cost and 0 or 0.5
 	else
 		upgradeRows.Pedestal.Sub.Text = "MAXED (+5 with pass)"
+	end
+
+	-- Robux rows: show what "Unlock Next Biome" gives, grey out maxed items
+	local nextBiomeRow = upgradeRows.RobuxNextBiome
+	if nextBiomeRow then
+		local nextBiome = nil
+		for _, id in ipairs(BiomeConfig.Order) do
+			if speed < BiomeConfig.Get(id).SpeedRequired then
+				nextBiome = BiomeConfig.Get(id)
+				break
+			end
+		end
+		nextBiomeRow.Sub.Text = nextBiome and string.format("Jump to %s (%d Speed)", nextBiome.Name, nextBiome.SpeedRequired) or "Every biome unlocked!"
+		nextBiomeRow.Buttons[1].BackgroundTransparency = nextBiome and 0 or 0.6
+	end
+	if upgradeRows.RobuxHarnessMax then
+		upgradeRows.RobuxHarnessMax.Buttons[1].BackgroundTransparency = carry < EconomyConfig.CarryMaxLevel and 0 or 0.6
+	end
+	if upgradeRows.RobuxPedestalPlus1 then
+		upgradeRows.RobuxPedestalPlus1.Buttons[1].BackgroundTransparency = pedestals < EconomyConfig.MaxPedestals and 0 or 0.6
 	end
 
 	for _, id in ipairs(BiomeConfig.Order) do
@@ -6760,6 +6914,9 @@ local function refreshShop()
 		end
 		if info.Event and not (snapshot and snapshot.EventActive) then
 			show = false
+		end
+		if info.Upgrade then
+			show = false -- listed in the Upgrades panel instead
 		end
 		if show then
 			order += 1

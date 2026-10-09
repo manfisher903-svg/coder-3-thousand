@@ -133,6 +133,17 @@ local function grantOrb(rarity: string)
 	end
 end
 
+local function upgradeHandler(grant: (Player) -> boolean, successMsg: string, maxedMsg: string)
+	return function(player: Player)
+		if grant(player) then
+			Services.PlayerDataService:Notify(player, successMsg, "success")
+		else
+			compensate(player, maxedMsg)
+		end
+		return true
+	end
+end
+
 local ProductHandlers: { [string]: (Player, any) -> boolean } = {
 	StarterPack = function(player, data)
 		if data.StarterPackBought then
@@ -201,6 +212,13 @@ local ProductHandlers: { [string]: (Player, any) -> boolean } = {
 		Services.PlayerDataService:Notify(player, "+" .. Effects.CandyLarge .. " Candy!", "success")
 		return true
 	end,
+	-- Robux upgrades: if already maxed, compensate with Essence instead of wasting the purchase.
+	NextBiome = upgradeHandler(function(player) return Services.UpgradeService:GrantNextBiome(player) end, "Next biome unlocked!", "You've unlocked every biome you can."),
+	SpeedPlus10 = upgradeHandler(function(player) return Services.UpgradeService:GrantSpeed(player, 10) end, "+10 Speed!", "Your Speed is already maxed."),
+	SpeedPlus50 = upgradeHandler(function(player) return Services.UpgradeService:GrantSpeed(player, 50) end, "+50 Speed!", "Your Speed is already maxed."),
+	TreadmillNext = upgradeHandler(function(player) return Services.UpgradeService:GrantTreadmill(player) end, "Treadmill upgraded!", "Treadmill is maxed for now."),
+	HarnessMax = upgradeHandler(function(player) return Services.UpgradeService:GrantHarnessMax(player) end, "Soul Harness maxed!", "Soul Harness is already maxed."),
+	PedestalPlus1 = upgradeHandler(function(player) return Services.UpgradeService:GrantPedestal(player) end, "New pedestal unlocked!", "All pedestals are already unlocked."),
 	ServerEclipse = function(player)
 		Services.DayNightService:StartEclipse(Effects.EclipseSeconds, player.DisplayName)
 		return true

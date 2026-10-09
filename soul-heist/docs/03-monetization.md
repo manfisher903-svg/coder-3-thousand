@@ -44,6 +44,19 @@ Total for all passes: about 2,840 R$. Most whales buy 4–6.
 | **Candy Bag** (event) | **49 R$** | 120 Candy | Event panel, Halloween only |
 | **Candy Cauldron** (event) | **199 R$** | 600 Candy (best value) | Event panel, Halloween only |
 
+### Robux Upgrades ("skip the grind"), shown in the Upgrades panel
+
+| Product | Price | Effect | If already maxed |
+|---|---|---|---|
+| **Unlock Next Biome** | **99 R$** | Sets Speed to the next biome's requirement | Essence compensation |
+| **+10 Speed** | **49 R$** | +10 Speed | Essence compensation |
+| **+50 Speed** | **179 R$** | +50 Speed (better value) | Essence compensation |
+| **Treadmill Upgrade** | **99 R$** | Next Treadmill tier (rebirth-locked tiers still need rebirths) | Essence compensation |
+| **Max Soul Harness** | **149 R$** | Harness straight to level 15 (−60% carry slowdown) | Essence compensation |
+| **+1 Pedestal** | **79 R$** | Next pedestal (up to 20) | Essence compensation |
+
+Speed purchases automatically raise the Treadmill tier so the Speed fits under the cap, but never past what the player's rebirths allow. Like normal upgrades, **Speed, Treadmill and Harness reset on rebirth** (pedestals are kept). That's what makes them repeat purchases: buyers re-buy after each rebirth to blast through the early biomes again.
+
 **Essence packs scale with income** (`max(floor, income × seconds)`), so they stay worth buying at every stage of the game. That's the single most important rule for repeat purchases.
 
 ## 3.3 Pricing Ladder Strategy

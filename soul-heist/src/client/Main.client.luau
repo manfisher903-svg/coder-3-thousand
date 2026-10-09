@@ -358,10 +358,31 @@ do
 		{ Text = "Buy", Color = THEME.Accent, OnClick = function() request("RequestUpgrade", "Pedestal") end },
 	})
 	upgradeRows.Pedestal = { Title = t4, Sub = s4, Buttons = b4 }
-	sectionHeader(upgradesList, 5, "Biomes")
+
+	-- Robux upgrades (skip the grind)
+	sectionHeader(upgradesList, 5, "Instant Upgrades (Robux)")
+	local robuxKeys = {}
+	for key, info in pairs(MonetizationConfig.Products) do
+		if info.Upgrade then
+			table.insert(robuxKeys, key)
+		end
+	end
+	table.sort(robuxKeys, function(a, b)
+		return MonetizationConfig.Products[a].Order < MonetizationConfig.Products[b].Order
+	end)
+	for i, key in ipairs(robuxKeys) do
+		local info = MonetizationConfig.Products[key]
+		local productKey = key
+		local _, t, s, b = makeRow(upgradesList, 5 + i, info.Name, info.Desc, {
+			{ Text = "R$ " .. info.Price, Color = THEME.Gold, OnClick = function() promptProduct(productKey) end },
+		})
+		upgradeRows["Robux" .. key] = { Title = t, Sub = s, Buttons = b }
+	end
+
+	sectionHeader(upgradesList, 20, "Biomes")
 	for i, id in ipairs(BiomeConfig.Order) do
 		local biome = BiomeConfig.Get(id)
-		local _, t, s = makeRow(upgradesList, 5 + i, biome.Name, "", nil)
+		local _, t, s = makeRow(upgradesList, 20 + i, biome.Name, "", nil)
 		upgradeRows["Biome" .. id] = { Title = t, Sub = s, Biome = biome }
 	end
 end
@@ -416,6 +437,26 @@ local function refreshUpgrades()
 		upgradeRows.Pedestal.Buttons[1].BackgroundTransparency = essence >= cost and 0 or 0.5
 	else
 		upgradeRows.Pedestal.Sub.Text = "MAXED (+5 with pass)"
+	end
+
+	-- Robux rows: show what "Unlock Next Biome" gives, grey out maxed items
+	local nextBiomeRow = upgradeRows.RobuxNextBiome
+	if nextBiomeRow then
+		local nextBiome = nil
+		for _, id in ipairs(BiomeConfig.Order) do
+			if speed < BiomeConfig.Get(id).SpeedRequired then
+				nextBiome = BiomeConfig.Get(id)
+				break
+			end
+		end
+		nextBiomeRow.Sub.Text = nextBiome and string.format("Jump to %s (%d Speed)", nextBiome.Name, nextBiome.SpeedRequired) or "Every biome unlocked!"
+		nextBiomeRow.Buttons[1].BackgroundTransparency = nextBiome and 0 or 0.6
+	end
+	if upgradeRows.RobuxHarnessMax then
+		upgradeRows.RobuxHarnessMax.Buttons[1].BackgroundTransparency = carry < EconomyConfig.CarryMaxLevel and 0 or 0.6
+	end
+	if upgradeRows.RobuxPedestalPlus1 then
+		upgradeRows.RobuxPedestalPlus1.Buttons[1].BackgroundTransparency = pedestals < EconomyConfig.MaxPedestals and 0 or 0.6
 	end
 
 	for _, id in ipairs(BiomeConfig.Order) do
@@ -581,6 +622,9 @@ local function refreshShop()
 		end
 		if info.Event and not (snapshot and snapshot.EventActive) then
 			show = false
+		end
+		if info.Upgrade then
+			show = false -- listed in the Upgrades panel instead
 		end
 		if show then
 			order += 1

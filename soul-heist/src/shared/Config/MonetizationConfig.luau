@@ -6,7 +6,7 @@
 ]]
 
 export type PassInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number }
-export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean?, Event: boolean? }
+export type ProductInfo = { Id: number, Price: number, Name: string, Desc: string, Order: number, Hidden: boolean?, Event: boolean?, Upgrade: boolean? }
 
 local MonetizationConfig = {}
 
@@ -43,6 +43,13 @@ MonetizationConfig.Products = {
 	-- Seasonal (only shown while an event is active)
 	CandySmall = { Id = 0, Price = 49, Order = 17, Name = "Candy Bag", Desc = "120 Candy for the event shop", Event = true },
 	CandyLarge = { Id = 0, Price = 199, Order = 18, Name = "Candy Cauldron", Desc = "600 Candy for the event shop (BEST VALUE)", Event = true },
+	-- Robux upgrades ("skip the grind"). Shown in the Upgrades panel. Reset on rebirth like normal upgrades.
+	NextBiome = { Id = 0, Price = 99, Order = 19, Name = "Unlock Next Biome", Desc = "Instantly get the Speed for the next biome", Upgrade = true },
+	SpeedPlus10 = { Id = 0, Price = 49, Order = 20, Name = "+10 Speed", Desc = "+10 Speed (Treadmill auto-upgrades)", Upgrade = true },
+	SpeedPlus50 = { Id = 0, Price = 179, Order = 21, Name = "+50 Speed", Desc = "+50 Speed (Treadmill auto-upgrades)", Upgrade = true },
+	TreadmillNext = { Id = 0, Price = 99, Order = 22, Name = "Treadmill Upgrade", Desc = "Next Treadmill tier (raises your Speed cap)", Upgrade = true },
+	HarnessMax = { Id = 0, Price = 149, Order = 23, Name = "Max Soul Harness", Desc = "Soul Harness to level 15 (-60% carry slowdown)", Upgrade = true },
+	PedestalPlus1 = { Id = 0, Price = 79, Order = 24, Name = "+1 Pedestal", Desc = "Unlock your next pedestal instantly", Upgrade = true },
 } :: { [string]: ProductInfo }
 
 -- Effect constants used by the server
