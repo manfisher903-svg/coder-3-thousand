@@ -501,7 +501,9 @@ def index():
       <p class="muted" style="font-size:.8rem">Leave on <b>Auto-detect</b> unless
          a scan says it couldn't find your mail server. For any webmail not in the
          list, choose <b>Other / webmail</b> and type its mail server (e.g.
-         <code>imap.yourprovider.com</code>) in the box above.</p>
+         <code>imap.yourprovider.com</code>) in the box above. For email on your
+         own domain (the <b>Webmail</b> login), pick <b>cPanel Webmail</b> — it
+         uses <code>mail.yourdomain</code> and your normal email password.</p>
       <p><button>Add account</button>
       <span class="muted">Saved to {escape(_acct_path())} on this computer.</span></p>
     </form></div>
@@ -848,6 +850,10 @@ def add_account():
     # typed host, or Auto-detect, means auto (host=None).
     if custom:
         host = custom
+    elif provider == "__cpanel__":
+        # cPanel/Webmail on your own domain: the server is mail.<your-domain>.
+        dom = email.split("@")[-1].strip().lower() if "@" in email else ""
+        host = f"mail.{dom}" if dom else None
     elif provider and provider != "__custom__":
         host = provider
     else:

@@ -90,6 +90,7 @@ PROVIDERS = [
     ("Mail.ru", "imap.mail.ru"),
     ("NetZero (POP3)", "pop.netzero.net"),
     ("Juno (POP3)", "pop.juno.com"),
+    ("cPanel Webmail (your own domain)", "__cpanel__"),
     ("Other / webmail — type my mail server below", "__custom__"),
 ]
 
