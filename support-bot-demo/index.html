@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stay Support Assistant — Demo</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#1c2024; --muted:#6b7280;
+    --line:#e5e7eb; --brand:#2f6df6; --brand-ink:#ffffff;
+    --bot:#f0f2f5; --user:#2f6df6; --user-ink:#ffffff;
+    --shadow:0 10px 30px rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1115; --panel:#161a20; --ink:#e8eaed; --muted:#9aa1ab;
+      --line:#262b33; --bot:#1e242c; --user:#2f6df6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1115; --panel:#161a20; --ink:#e8eaed; --muted:#9aa1ab;
+    --line:#262b33; --bot:#1e242c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:24px 16px;gap:14px}
+  .demo-banner{max-width:440px;width:100%;background:#fff7ed;border:1px solid #fed7aa;
+    color:#9a3412;border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.4}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .demo-banner{
+    background:#2a1a0e;border-color:#7c3a12;color:#fdba74}}
+  .app{width:100%;max-width:440px;height:min(680px,80vh);background:var(--panel);
+    border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .avatar{width:40px;height:40px;border-radius:50%;background:var(--brand);color:var(--brand-ink);
+    display:grid;place-items:center;font-weight:700;font-size:18px;flex:none}
+  .title b{display:block;font-size:15px}
+  .title span{font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;margin-right:5px}
+  main{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;gap:8px;max-width:88%}
+  .row.bot{align-self:flex-start}
+  .row.user{align-self:flex-end;flex-direction:row-reverse}
+  .bubble{padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+  .bot .bubble{background:var(--bot);border-bottom-left-radius:4px}
+  .user .bubble{background:var(--user);color:var(--user-ink);border-bottom-right-radius:4px}
+  .bubble a{color:inherit;font-weight:600}
+  .quick{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 10px}
+  .chip{border:1px solid var(--line);background:transparent;color:var(--brand);
+    border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;font-weight:600}
+  .chip:hover{background:var(--bot)}
+  form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+  input{flex:1;border:1px solid var(--line);background:transparent;color:var(--ink);
+    border-radius:999px;padding:11px 14px;font-size:14px;outline:none}
+  input:focus{border-color:var(--brand)}
+  button.send{background:var(--brand);color:var(--brand-ink);border:none;border-radius:999px;
+    width:44px;height:44px;cursor:pointer;font-size:18px;flex:none}
+  .typing .bubble{color:var(--muted)}
+  footer{text-align:center;font-size:11px;color:var(--muted);max-width:440px;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="demo-banner">
+    <b>Prototype / demo.</b> Placeholder branding only — not affiliated with any real company.
+    For sign-in, payments, or account changes a real bot links out to the company's official site;
+    this demo never asks for passwords or card details.
+  </div>
+
+  <div class="app">
+    <header>
+      <div class="avatar">S</div>
+      <div class="title">
+        <b>[Your Company] Stay Support</b>
+        <span><span class="dot"></span>Assistant · typically replies instantly</span>
+      </div>
+    </header>
+    <main id="log"></main>
+    <div class="quick" id="quick"></div>
+    <form id="form" autocomplete="off">
+      <input id="input" placeholder="Type your question…" aria-label="Message" />
+      <button class="send" type="submit" aria-label="Send">➤</button>
+    </form>
+  </div>
+
+  <footer>Demo support assistant · answers are sample canned responses to show the flow.</footer>
+
+<script>
+(function(){
+  const log = document.getElementById('log');
+  const quickWrap = document.getElementById('quick');
+  const form = document.getElementById('form');
+  const input = document.getElementById('input');
+
+  // ---- Knowledge base: intents -> answer. Edit freely for your real content. ----
+  const KB = [
+    { keys:['cancel','cancellation','refund','money back'],
+      a:"I can walk you through a cancellation. Refund amounts depend on the reservation's cancellation policy (Flexible, Moderate, or Strict).\n\nTo cancel or see your exact refund, open the reservation in your account on the official site and choose “Cancel reservation.” Want me to explain how each policy works?" },
+    { keys:['change','reschedule','date','modify','move my'],
+      a:"To change dates or guest count, open the trip in your account and send a change request to the host — they approve or decline, and any price difference is shown before you confirm. Would you like the step-by-step?" },
+    { keys:['check in','check-in','checkin','key','access','arrive','arrival'],
+      a:"Check-in details (address, door code, instructions) appear in your reservation about 48 hours before arrival. If they're missing or you're locked out, message the host first; if there's no reply, I can open a support ticket for a human agent." },
+    { keys:['host','contact','message','reach'],
+      a:"You can message your host directly from the reservation page. Most reply within a few hours. If you've waited and it's urgent (e.g. can't get in), tell me and I'll escalate to a human agent." },
+    { keys:['refund status','where is my refund','refund taking','pending'],
+      a:"Approved refunds usually post back to the original payment method within 5–10 business days, depending on your bank. If it's been longer, I can create a ticket so an agent can trace it." },
+    { keys:['payment','charge','charged twice','billing','invoice','receipt'],
+      a:"For anything involving a charge, please review it under “Payments” in your account on the official site. I can't view or take card details here. If you see a charge you don't recognise, I'll escalate it to a billing agent." },
+    { keys:['password','login','log in','sign in','locked out of account','reset'],
+      a:"For account sign-in or password resets, always use the official site or app directly — never share your password with support (real agents never ask for it). Go to the official login page and use “Forgot password.”" },
+    { keys:['human','agent','person','representative','speak to'],
+      a:"No problem — I can hand you to a human agent. In the live version this opens a ticket and connects you to the next available person. (Demo: pretend ticket #DEMO-4821 created ✅)" },
+    { keys:['cleaning','clean','dirty','mess'],
+      a:"Sorry about that. Take a few photos and message the host through the reservation within 24 hours. If it isn't resolved, I can escalate it with your photos attached." },
+    { keys:['wifi','wi-fi','internet','password for wifi'],
+      a:"Wi-Fi details are usually in the listing's house manual or the check-in instructions on your reservation page. If they're not there, your host can send them in a message." },
+    { keys:['hi','hello','hey','help','support'],
+      a:"Hi! I'm the demo Stay Support assistant. I can help with cancellations, date changes, check-in, contacting your host, and refunds. What do you need?" },
+    { keys:['thanks','thank you','cheers','ta'],
+      a:"You're welcome! Anything else I can help with?" },
+  ];
+
+  const FALLBACK = "I'm a demo assistant, so I only have sample answers for common topics: cancellations & refunds, changing dates, check-in, contacting your host, and billing questions. Try one of those, or tap “Talk to a human.”";
+
+  const CHIPS = ["Cancel a reservation","Change my dates","Check-in help","Contact my host","Talk to a human"];
+
+  function match(text){
+    const t = text.toLowerCase();
+    let best=null, score=0;
+    for(const item of KB){
+      let s=0;
+      for(const k of item.keys){ if(t.includes(k)) s += k.length; }
+      if(s>score){score=s;best=item;}
+    }
+    return best ? best.a : FALLBACK;
+  }
+
+  function linkify(s){
+    return s.replace(/official site( and app| or app)?/gi, m =>
+      '<a href="#" onclick="return false">'+m+'</a>');
+  }
+
+  function add(role, text){
+    const row=document.createElement('div'); row.className='row '+role;
+    const b=document.createElement('div'); b.className='bubble';
+    b.innerHTML = linkify(text);
+    row.appendChild(b); log.appendChild(row);
+    log.scrollTop=log.scrollHeight;
+    return row;
+  }
+
+  function botReply(text){
+    const t=add('bot','…'); t.classList.add('typing');
+    setTimeout(()=>{ t.classList.remove('typing'); t.querySelector('.bubble').innerHTML=linkify(text);
+      log.scrollTop=log.scrollHeight; }, 500 + Math.random()*500);
+  }
+
+  function send(text){
+    text=text.trim(); if(!text) return;
+    add('user', text);
+    input.value='';
+    botReply(match(text));
+  }
+
+  CHIPS.forEach(c=>{
+    const b=document.createElement('button'); b.className='chip'; b.textContent=c;
+    b.onclick=()=>send(c); quickWrap.appendChild(b);
+  });
+
+  form.addEventListener('submit', e=>{ e.preventDefault(); send(input.value); });
+
+  botReply("👋 Welcome to [Your Company] Stay Support (demo). I can help with cancellations, date changes, check-in, and contacting your host. What can I do for you?");
+})();
+</script>
+</body>
+</html>
