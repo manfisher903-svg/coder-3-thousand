@@ -1,4 +1,4 @@
-# SpeedRunner
+# Speedrunner Master
 
 _(a.k.a. Personal Info Scanner)_
 
@@ -131,7 +131,7 @@ close it (Ctrl+C) when done. (Running Python *directly* on a phone is possible
 via Termux/Pydroid on Android or a-Shell on iOS, but the computer-plus-phone-
 browser route above is far simpler.)
 
-## SpeedRunner — the app (easiest way to use it)
+## Speedrunner Master — the app (easiest way to use it)
 
 Instead of typing commands, you can open it like an app in your browser:
 

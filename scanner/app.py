@@ -191,7 +191,7 @@ def _make_progress(user: str):
 
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} :: SpeedRunner</title>
+<title>{title} :: Speedrunner Master</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@600;800&display=swap" rel="stylesheet">
 <style>
@@ -271,12 +271,12 @@ padding-top:10px}}
 {intro}
 <canvas id="matrix"></canvas>
 <header>
-<span class="brand">◢ SPEEDRUNNER<span class="cur">_</span></span>
+<span class="brand">◢ SPEEDRUNNER MASTER<span class="cur">_</span></span>
 <a href="/">▸ accounts</a><a href="/master">▸ master</a>
 <a href="/search">▸ search</a><a href="/export">▸ export</a>
 {ownernav}<a href="/logout">▸ lock</a>
 </header>{body}
-<footer>SpeedRunner // 100% local — nothing leaves this machine // read-only email access</footer>
+<footer>Speedrunner Master // 100% local — nothing leaves this machine // read-only email access</footer>
 <script>
 // Lightweight matrix rain for background flavor.
 (function(){{
@@ -348,7 +348,7 @@ INTRO_HTML = r"""
 try{if(sessionStorage.getItem('srIntro')==='1'){document.documentElement.classList.add('sr-seen');}}catch(e){}
 </script>
 <div id="sr-intro" aria-hidden="true">
-  <div class="glitch" data-t="SPEEDRUNNER">SPEEDRUNNER</div>
+  <div class="glitch" data-t="SPEEDRUNNER MASTER">SPEEDRUNNER MASTER</div>
   <div class="log"></div>
   <div class="bar"><i></i></div>
   <div class="skip">[ click or press any key to skip ]</div>
@@ -670,7 +670,7 @@ def login():
       <p><button>Unlock</button></p>
     </form>
     <p class="muted">New here? <a href="/register">Create an account</a>. This is
-    your SpeedRunner login — not your email password.</p></div>"""
+    your Speedrunner Master login — not your email password.</p></div>"""
     return render("Sign in", body)
 
 
@@ -730,7 +730,7 @@ def users_admin():
     body = f"""
     <h1>Users</h1>
     <div class="card">
-    <p class="muted">Everyone who has an account on this SpeedRunner. Click
+    <p class="muted">Everyone who has an account on this Speedrunner Master. Click
     <b>look through</b> to view that person's email accounts, scans and findings
     (read-only). Exit the view to come back to your own.</p>
     <table>
@@ -815,7 +815,7 @@ def invites():
     <h1>Invite codes</h1>
     <div class="card">
     <p class="muted">Generate a code and give it to someone. They enter it on the
-    <b>Create account</b> page to register on <b>your</b> SpeedRunner — no app
+    <b>Create account</b> page to register on <b>your</b> Speedrunner Master — no app
     install needed, just the link you share. Turn a code off anytime to block it.</p>
     {note_html}
     <form method="post" action="/invites">
@@ -1606,7 +1606,7 @@ def main():
   / __|_ __  ___ ___ __| | _ \_  _ _ _  _ _  ___ _ _
   \__ \ '_ \/ -_) -_) _` |   / || | ' \| ' \/ -_) '_|
   |___/ .__/\___\___\__,_|_|_\\_,_|_||_|_||_\___|_|
-      |_|   SPEEDRUNNER  //  local personal-data recon
+      |_|   SPEEDRUNNER MASTER  //  local personal-data recon
 """)
     # Phone/LAN mode: set PIS_LAN=1 to let other devices on your Wi-Fi (your
     # phone) reach the app at http://<this-computer-ip>:5000.
