@@ -449,10 +449,20 @@ def index():
             summary = '<span class="muted">not scanned yet</span>'
             link = ""
         em = escape(a.email)
-        saved = ('<span class="muted" title="Password saved — reused every scan, '
-                 'no need to re-enter">🔑 saved</span>'
-                 if (a.password or "").strip()
-                 else '<span class="warn">no password</span>')
+        pw = (a.password or "").strip()
+        if pw:
+            pid = f"pw_{folder}"
+            saved = (
+                f'<span class="muted">🔑</span> '
+                f'<input id="{pid}" type="password" value="{escape(pw)}" readonly '
+                f'size="18" style="padding:2px 6px;font-size:.8rem;width:auto;'
+                f'min-width:0;display:inline-block">'
+                f'<button type="button" class="small" style="margin-left:4px" '
+                f'onclick="var e=document.getElementById(\'{pid}\');'
+                f'e.type=e.type==\'password\'?\'text\':\'password\';'
+                f'this.textContent=e.type==\'password\'?\'show\':\'hide\'">show</button>')
+        else:
+            saved = '<span class="warn">no password</span>'
         if a.host:
             saved += (f'<br><span class="muted" style="font-size:.76rem">'
                       f'via {escape(a.host)}</span>')
