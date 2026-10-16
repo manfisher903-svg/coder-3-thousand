@@ -510,11 +510,11 @@ def index():
 
     <div class="card"><h2>Scan</h2>
     <p class="muted">Reads each inbox read-only and finds services and sensitive
-    info. Fast mode reads just the text; tick the box to also download and save
-    pictures &amp; files (much slower).</p>
+    info. By default it also downloads and saves every picture &amp; file so you
+    can see everything — untick the box for a faster text-only scan.</p>
     <form method="post" action="/scan" onsubmit="setTimeout(poll,400)">
-      <p><label><input type="checkbox" name="attachments" value="1">
-        Also save pictures &amp; files (slower)</label></p>
+      <p><label><input type="checkbox" name="attachments" value="1" checked>
+        Save pictures &amp; files (uncheck for a faster text-only scan)</label></p>
       {scan_btn}
     </form>
     <div id="progress" style="margin-top:12px"></div>
@@ -951,9 +951,10 @@ def rescan_account():
     if (r := _readonly_block()) is not None:
         return r
     email = (request.form.get("email") or "").strip()
-    save = bool(request.form.get("attachments"))
+    # Re-scan grabs everything (pictures & files) too, so a single account's
+    # re-scan matches the "save everything" default of the main scan.
     if email:
-        _start_scan(only_email=email, save_attachments=save)
+        _start_scan(only_email=email, save_attachments=True)
     return redirect(url_for("index"))
 
 

@@ -32,4 +32,4 @@ services:
     disk:
       name: speedrunner-data
       mountPath: /var/data
-      sizeGB: 1
+      sizeGB: 5
