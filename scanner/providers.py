@@ -60,6 +60,16 @@ _reg(["verizon.net"], "imap.aol.com")  # Verizon mail is served by AOL
 _reg(["cox.net"], "imap.cox.net")
 _reg(["btinternet.com", "btopenworld.com", "talk21.com", "btconnect.com", "bt.com"],
      "mail.btinternet.com")
+# Spectrum (absorbed Charter, Time Warner Cable, Bright House, Road Runner).
+# All of these use one mail server: mobile.charter.net (IMAP SSL 993).
+_reg(["charter.net", "charter.com", "twc.com", "spectrum.net", "brighthouse.com",
+      "rr.com", "roadrunner.com",
+      "twcny.rr.com", "rochester.rr.com", "nycap.rr.com", "carolina.rr.com",
+      "cfl.rr.com", "tampabay.rr.com", "austin.rr.com", "socal.rr.com",
+      "san.rr.com", "columbus.rr.com", "neo.rr.com", "woh.rr.com", "ec.rr.com",
+      "triad.rr.com", "wi.rr.com", "kc.rr.com", "mn.rr.com", "maine.rr.com",
+      "satx.rr.com", "nc.rr.com", "insight.rr.com", "hawaii.rr.com", "bak.rr.com"],
+     "mobile.charter.net")
 # NetZero & Juno (United Online) are POP3-only — they have no IMAP server.
 _KNOWN["netzero.net"] = ImapServer("pop.netzero.net", 995, "ssl",
                                    source="built-in", protocol="pop3")
@@ -85,6 +95,7 @@ PROVIDERS = [
     ("Verizon", "imap.aol.com"),
     ("Cox", "imap.cox.net"),
     ("BT Internet (UK)", "mail.btinternet.com"),
+    ("Spectrum / Charter / Time Warner / RoadRunner", "mobile.charter.net"),
     ("GMX", "imap.gmx.com"),
     ("Zoho", "imap.zoho.com"),
     ("Fastmail", "imap.fastmail.com"),
